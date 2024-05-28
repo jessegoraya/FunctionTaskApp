@@ -23,6 +23,10 @@ namespace CMaaS.Task.Model
         //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
         public string id { get; set; }
+
+        //Task ID is the partition key in Cosmos.  Consider making this a hash of tenant + process type 
+        [JsonProperty(PropertyName = "TaskID")]
+        public string taskid { get; set; }
     }
 
     public class GroupTask
@@ -143,15 +147,15 @@ namespace CMaaS.Task.Model
         public Guid individualtaskid { get; set; }
 
         //Identifies where in a life cycle the task currently lies
-        [JsonProperty(PropertyName = "IndividualTaskStatus")]
+        [JsonProperty(PropertyName = "IndividualTaskStatus", Required = Required.Always)]
         public string individualtaskstatus { get; set; }
 
         //Provides a description of the task which is automatically generated from the Group Task
-        [JsonProperty(PropertyName = "IndividualTaskTitle")]
+        [JsonProperty(PropertyName = "IndividualTaskTitle", Required = Required.Always)]
         public string individualtasktitle { get; set; }
 
         //Defines the type of task being set
-        [JsonProperty(PropertyName = "IndividualTaskType")]
+        [JsonProperty(PropertyName = "IndividualTaskType", Required = Required.Always)]
         public string individualtasktype { get; set; }
 
         //Provides a description of the task which is automatically generated from the Group Task
@@ -205,6 +209,11 @@ namespace CMaaS.Task.Model
         //Date captured by the system identifying the creation of the Group Task within the system
         [JsonProperty(PropertyName = "CreatedDate")]
         public DateTime createddate { get; set; }
+
+        public static implicit operator IndividualTask(List<IndividualTask> v)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public class AssoicatedDocument
@@ -268,6 +277,42 @@ namespace CMaaS.Task.Model
 
         [JsonProperty(PropertyName = "AssigneeStakeholderGroup")]
         public string assigneestakeholdergroup { get; set; }
+    }
+
+    public class ReturnTaskObject
+    {
+        // need to add Task id to the Return object
+
+        [JsonProperty(PropertyName = "Valid")]
+        //used to set if what is being returned was not setReturnTaskObject rto
+        public Boolean valid { get; set; }
+
+        [JsonProperty(PropertyName = "CaseID")]
+        public string caseid { get; set; }
+
+        [JsonProperty(PropertyName = "id")]
+        public string id { get; set; }
+
+        [JsonProperty(PropertyName = "GroupTaskID")]
+        public string grouptaskid { get; set; }
+
+        [JsonProperty(PropertyName = "GroupTask")]
+        public GroupTask grouptask { get; set; }
+
+        [JsonProperty(PropertyName = "IndividualTaskSets")]
+        public List<IndividualTaskSet> individualtasksets { get; set; }
+
+        [JsonProperty(PropertyName = "IndividualTaskSetID")]
+        public string individualtasksetid { get; set; }
+
+        [JsonProperty(PropertyName = "IndividualTaskSetIDOrIndex")]
+        public string individualtasksetidorindex { get; set; }
+
+        [JsonProperty(PropertyName = "IndividualTaskIDOrIndex")]
+        public string individualtaskidorindex { get; set; }
+
+        [JsonProperty(PropertyName = "TaskID")]
+        public string taskid { get; set; }
     }
 }
 

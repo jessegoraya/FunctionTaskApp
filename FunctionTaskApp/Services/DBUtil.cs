@@ -8,13 +8,14 @@ using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Azure.Cosmos;
 
 namespace CMaaS.Task.Service
 {
     class DBUtil
     {
 
-        public async Task<Document> CreateGroupTaskSet(GroupTaskSet gts)
+        public async Task<Document> InsertGroupTaskSet(GroupTaskSet gts)
         {
             ResourceResponse<Document> doc = await Client.CreateDocumentAsync(CollectionLink, gts);
             return doc;
@@ -36,6 +37,7 @@ namespace CMaaS.Task.Service
          
             return convertedGTS;
         }
+
         public async Task<List<GroupTaskSet>> GetGroupTaskSetByTenantAndCase (string caseid, string tenant)
         {
             var option = new FeedOptions { EnableCrossPartitionQuery = true };
@@ -48,6 +50,97 @@ namespace CMaaS.Task.Service
             List<GroupTaskSet> convertedGTS = gts.ToList();
 
             return convertedGTS;
+        }
+
+        public GroupTaskSet GetGTSbyGTID(string grouptaskID)
+        {
+            var option = new FeedOptions { EnableCrossPartitionQuery = true };
+
+            var query = new SqlQuerySpec(
+                "SELECT VALUE t FROM Task t JOIN g in t.GroupTask WHERE g.GroupTaskID = @gtid",
+                new SqlParameterCollection()
+                {
+                    new SqlParameter("@gtid", grouptaskID)
+                }
+                );
+
+            dynamic doc = Client.CreateDocumentQuery<dynamic>(CollectionLink, query, option).AsEnumerable().FirstOrDefault();
+
+            GroupTaskSet convertedGTS = null;
+            if (doc != null)
+            {
+                convertedGTS = doc;
+            }
+
+            return convertedGTS;
+        }
+
+        public IndividualTaskSet GetActiveITSbyGTID(string grouptaskID)
+        {
+            var option = new FeedOptions { EnableCrossPartitionQuery = true };
+
+            IQueryable<IndividualTaskSet> query = Client.CreateDocumentQuery<IndividualTaskSet>(CollectionLink, new SqlQuerySpec
+            {
+                QueryText = "SELECT VALUE FROM Task t JOIN g in t.GroupTask JOIN its in g.IndividualTaskSets WHERE g.GroupTaskID = @gtid",
+                Parameters = new SqlParameterCollection()
+                {
+                    new SqlParameter("@gtid", grouptaskID)
+                }
+            }, option
+                );
+
+            return (IndividualTaskSet)query;
+        }
+
+        public ReturnTaskObject GetRTOIDbyITID(string itid)
+        {
+
+            var option = new FeedOptions { EnableCrossPartitionQuery = true };
+
+            var query = new SqlQuerySpec(
+                //"SELECT t.id, t.TaskID FROM Task t JOIN g in t.GroupTask JOIN its in g.IndividualTaskSets JOIN it IN its.IndividualTask WHERE it.IndividualTaskID = @itid",
+                "SELECT t.id, t.TaskID, g.IndividualTaskSets, g.GroupTaskID FROM Task t JOIN g in t.GroupTask JOIN its in g.IndividualTaskSets JOIN it IN its.IndividualTask WHERE it.IndividualTaskID = @itid and (it.IndividualTaskStatus = '' or it.IndividualTaskStatus = 'Open' )",
+                new SqlParameterCollection()
+                {
+                    new SqlParameter("@itid", itid)
+                }
+                );
+
+            dynamic doc = Client.CreateDocumentQuery<dynamic>(CollectionLink, query, option).AsEnumerable().FirstOrDefault();
+            GroupTask returnedGT = new GroupTask();
+
+            ReturnTaskObject rto = new ReturnTaskObject();
+            List<IndividualTaskSet> its = new List<IndividualTaskSet>();
+            Boolean resetLoop = false;
+
+            if (doc != null)
+            {
+
+                rto = doc;
+                //rto.id = returned.id;
+                //rto.taskid = returnedGTS.taskid;
+                its = rto.individualtasksets;
+
+                for (int i = 0; i <= its.Count; i++)
+                {
+                    for (int j=0; j <= its[i].individualtask.Count; j++)
+                    {
+                        if (its[i].individualtask[j].individualtaskid.ToString() == itid)
+                        {
+                            rto.individualtasksetidorindex = i.ToString();
+                            rto.individualtaskidorindex = j.ToString();
+                            resetLoop = true;
+                            break;
+                        }
+                    }
+                    if (resetLoop == true)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return rto;
         }
 
         private static async Task<IEnumerable<GroupTaskSet>> QueryGroupTaskSets<GroupTaskSet>(IQueryable<GroupTaskSet> query)
@@ -68,6 +161,42 @@ namespace CMaaS.Task.Service
             return docs;
         }
 
+        public async Task<Boolean> UpdateGTSItem(GroupTaskSet updatedGTS)
+        {
+            try
+            {
+                Boolean result = false;
+                string id = updatedGTS.id;
+                var option = new FeedOptions { EnableCrossPartitionQuery = true };
+
+                dynamic doc = Client.CreateDocumentQuery<Document>(CollectionLink, option)
+                    .Where(d => d.Id == id).AsEnumerable().FirstOrDefault();
+
+                if (doc != null)
+                {
+                    ResourceResponse<Document> x = await Client.ReplaceDocumentAsync(doc.SelfLink, updatedGTS);
+                    if (x.StatusCode.ToString() == "OK")
+                    {
+                        result = true;
+                    }
+                    else
+                    {
+                        result = false;
+                    }
+                }
+                else
+                {
+                    result = false;
+                }
+
+                return result;
+            }
+            catch (Exception e)
+            {
+                Boolean errResult = false;
+                return errResult;
+            }
+        }
 
         /*
 
@@ -140,45 +269,62 @@ namespace CMaaS.Task.Service
         //}
 
 
-        public async Task<Boolean> UpdateGTSById(GroupTaskSet updatedGTS)
+
+        public async Task<string> UpdateIT(ReturnTaskObject rto, IndividualTask updatedIT, string path)
         {
+
             try
             {
-                Boolean result = false;
-                string id = updatedGTS.id;
-                var option = new FeedOptions { EnableCrossPartitionQuery = true };
+                string jsonPath = "/GroupTask/0/IndividualTaskSets/" + rto.individualtasksetidorindex.ToString() +"/IndividualTask/" + rto.individualtaskidorindex.ToString();
+                Container container = CosmosClient.GetContainer("bloomskyHealth", "Task");
 
-                dynamic doc = Client.CreateDocumentQuery<Document>(CollectionLink, option)
-                    .Where(d => d.Id == id).AsEnumerable().FirstOrDefault();
-
-                if (doc != null)
-                {
-                    ResourceResponse<Document> x = await Client.ReplaceDocumentAsync(doc.SelfLink, updatedGTS);
-                    if (x.StatusCode.ToString() == "OK")
-                    {
-                        result = true;
-                    }
-                    else
-                    {
-                        result = false;
-                    }
-                }
-                else
-                {
-                    result = false;
-                }
-
-                return result;
+                // var response = await container.PatchItemAsync<IndvidualTask>
+                ItemResponse<GroupTask> response = await container.PatchItemAsync<GroupTask>(
+                    id: rto.id,
+                    partitionKey: new Microsoft.Azure.Cosmos.PartitionKey(rto.taskid),
+                    patchOperations: new[] { PatchOperation.Set(jsonPath, updatedIT) }
+                    );
+                string status = response.StatusCode.ToString();
+                return status;
             }
             catch (Exception e)
             {
-                Boolean errResult = false;
-                return errResult;
+                System.Diagnostics.StackTrace t = new System.Diagnostics.StackTrace();
+                return t.ToString();
+                //return e.Message;
             }
+        }
 
+
+        public async Task<string> UpdateGTProp(string propname, string propvalue, string cosmosid, string taskid)
+        //Update a single property in Group Task assumping you have the id (cosmosid), the partiion key
+        {
+
+            try
+            {
+                string jsonPath = "/GroupTask/0/" + propname;
+                Container container = CosmosClient.GetContainer("bloomskyHealth", "Task");
+
+                // var response = await container.PatchItemAsync<IndvidualTask>
+                ItemResponse<GroupTask> response = await container.PatchItemAsync<GroupTask>(
+                    id: cosmosid,
+                    partitionKey: new Microsoft.Azure.Cosmos.PartitionKey(taskid),
+                    patchOperations: new[] { PatchOperation.Replace(jsonPath, propvalue) }
+                    );
+                string status = response.StatusCode.ToString();
+                return status;
+            }
+            catch (Exception e)
+            {
+                System.Diagnostics.StackTrace t = new System.Diagnostics.StackTrace();
+                return t.ToString();
+            }
         }
 
         private static Uri _collectionLink;
+        //private CosmosClient cosmosClient;
+
+
 
         private static Uri CollectionLink
         {
@@ -224,5 +370,22 @@ namespace CMaaS.Task.Service
                 return _client;
             }
         }
+
+        private static CosmosClient _cosmosClient;
+        private static CosmosClient CosmosClient
+        {
+            get
+            {
+                if (_cosmosClient == null)
+                {
+                    string endpoint = Environment.GetEnvironmentVariable("endpoint");
+                    string authKey = Environment.GetEnvironmentVariable("authKey");
+                    _cosmosClient = new CosmosClient(endpoint, authKey);
+                }
+
+                return _cosmosClient;
+            }
+        }
+
     }
 }
