@@ -12,8 +12,8 @@ namespace CMaaS.Task.Model
         [JsonProperty(PropertyName = "GroupTask")]
         public List<GroupTask> grouptask { get; set; }
 
-        //associated case connected to all of the Group & Individual Task sets.  This comes from the Line of Business system
-        [JsonProperty(PropertyName = "CaseID")]
+        //id from Project Container to link Taslow Project to Taslow GTS
+        [JsonProperty(PropertyName = "ProjectID")]
         public string caseid { get; set; }
 
         //associated tenant using 
@@ -24,9 +24,7 @@ namespace CMaaS.Task.Model
         [JsonProperty(PropertyName = "id")]
         public string id { get; set; }
 
-        //Task ID is the partition key in Cosmos.  Consider making this a hash of tenant + process type 
-        [JsonProperty(PropertyName = "TaskID")]
-        public string taskid { get; set; }
+
     }
 
     public class GroupTask
@@ -35,7 +33,7 @@ namespace CMaaS.Task.Model
         public string _type { get; set; }
 
         [JsonProperty(PropertyName = "GroupTaskID")]
-        public Guid grouptaskid { get; set; }
+        public string grouptaskid { get; set; }
 
         //Short Description of Action that needs to be completed by the Assignee
         [JsonProperty(PropertyName = "GroupTaskTitle")]
@@ -125,7 +123,7 @@ namespace CMaaS.Task.Model
     {
         //Contains 1 or more of the individual tasks seperated by type (facilitator, sme, review, approve) 
         [JsonProperty(PropertyName = "IndividualTaskSetID")]
-        public Guid individualtasksetid { get; set; }
+        public string individualtasksetid { get; set; }
 
         //The user who initially created the Group Task
         [JsonProperty(PropertyName = "CreatedBy")]
@@ -144,7 +142,7 @@ namespace CMaaS.Task.Model
     {
         //unique id for the individual task
         [JsonProperty(PropertyName = "IndividualTaskID")]
-        public Guid individualtaskid { get; set; }
+        public string individualtaskid { get; set; }
 
         //Identifies where in a life cycle the task currently lies
         [JsonProperty(PropertyName = "IndividualTaskStatus", Required = Required.Always)]
@@ -281,14 +279,17 @@ namespace CMaaS.Task.Model
 
     public class ReturnTaskObject
     {
-        // need to add Task id to the Return object
+        // get ids for a Task Object subelements - (id, gtid, itsid(s), itid(s))
 
         [JsonProperty(PropertyName = "Valid")]
         //used to set if what is being returned was not setReturnTaskObject rto
         public Boolean valid { get; set; }
 
-        [JsonProperty(PropertyName = "CaseID")]
-        public string caseid { get; set; }
+        [JsonProperty(PropertyName = "ProjectID")]
+        public string projectid { get; set; }
+
+        [JsonProperty(PropertyName = "TenantID")]
+        public string tenantid { get; set; }
 
         [JsonProperty(PropertyName = "id")]
         public string id { get; set; }
@@ -296,23 +297,13 @@ namespace CMaaS.Task.Model
         [JsonProperty(PropertyName = "GroupTaskID")]
         public string grouptaskid { get; set; }
 
-        [JsonProperty(PropertyName = "GroupTask")]
-        public GroupTask grouptask { get; set; }
-
-        [JsonProperty(PropertyName = "IndividualTaskSets")]
-        public List<IndividualTaskSet> individualtasksets { get; set; }
-
         [JsonProperty(PropertyName = "IndividualTaskSetID")]
         public string individualtasksetid { get; set; }
 
-        [JsonProperty(PropertyName = "IndividualTaskSetIDOrIndex")]
-        public string individualtasksetidorindex { get; set; }
-
-        [JsonProperty(PropertyName = "IndividualTaskIDOrIndex")]
+        [JsonProperty(PropertyName = "IndividualTaskID")]
         public string individualtaskidorindex { get; set; }
 
-        [JsonProperty(PropertyName = "TaskID")]
-        public string taskid { get; set; }
+
     }
 }
 

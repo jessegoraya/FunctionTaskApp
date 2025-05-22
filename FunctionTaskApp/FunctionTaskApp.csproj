@@ -1,27 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <AzureFunctionsVersion>v4</AzureFunctionsVersion>
-    <OutputType>Library</OutputType>
-	<ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.1" />
-    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.23.0" />
-    <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.16.2" />
-    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Http" Version="3.0.12" />
-    <PackageReference Include="Microsoft.Azure.WebJobs.Script.ExtensionsMetadataGenerator" Version="4.0.1" />
-    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.0.1" /> 
-	  <!-- <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="1.0.0-preview3" OutputItemType="Analyzer" /> -->
-  </ItemGroup>
-  <ItemGroup>
-    <None Update="host.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="local.settings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
-    </None>
-  </ItemGroup>
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<AzureFunctionsVersion>v4</AzureFunctionsVersion>
+		<OutputType>Library</OutputType>
+		<ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Azure Functions SDK -->
+		<PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
+		<PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Http" Version="3.2.0" />
+		<PackageReference Include="Microsoft.Azure.WebJobs.Script.ExtensionsMetadataGenerator" Version="4.0.1" />
+
+		<!-- Cosmos DB SDK (only keep one) -->
+		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.34.0" />
+		<!-- Removed: Microsoft.Azure.DocumentDB.Core to avoid conflict -->
+
+		<!-- JSON Support -->
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.0" />
+
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="host.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="local.settings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>Never</CopyToPublishDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.Diagnostics.DiagnosticSource" Version="6.0.0" />
+	</ItemGroup>
+
 </Project>

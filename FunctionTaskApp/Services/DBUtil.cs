@@ -1,391 +1,248 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using CMaaS.Task.Model;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
-using Microsoft.Azure.Documents.Linq;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Azure.Cosmos;
+using CMaaS.Task.Model;
+using System.Linq;
+using System.Collections.Generic;
 
-namespace CMaaS.Task.Service
+namespace CMaaS.Task.DAL
 {
-    class DBUtil
+    public class DBUtil
     {
+        private readonly CosmosClient cosmosClient;
+        private readonly Container container;
 
-        public async Task<Document> InsertGroupTaskSet(GroupTaskSet gts)
+        private const string DatabaseName = "bloomskyHealth";
+        private const string ContainerName = "GroupTaskSet";
+
+        public DBUtil()
         {
-            ResourceResponse<Document> doc = await Client.CreateDocumentAsync(CollectionLink, gts);
-            return doc;
+            string cosmosConnectionString = Environment.GetEnvironmentVariable("CosmosDBConnection");
+            cosmosClient = new CosmosClient(cosmosConnectionString);
+            container = cosmosClient.GetContainer(DatabaseName, ContainerName);
         }
 
-        public GroupTaskSet GetGroupTaskSetByID(string id)
+        public async Task<GroupTaskSet> InsertGroupTaskSet(GroupTaskSet item)
         {
-            var option = new FeedOptions { EnableCrossPartitionQuery = true };
+            item.id ??= Guid.NewGuid().ToString();
+            //item.PartitionKey ??= item.tenantid;  // If you use a partition key other than tenantid, update this
 
-            dynamic doc = Client.CreateDocumentQuery<Document>(CollectionLink, option)
-                        .Where(x => x.Id == id).AsEnumerable().FirstOrDefault();
-
-            GroupTaskSet convertedGTS = null;
-
-            if (doc != null)
-            {
-                convertedGTS = doc;
-            }
-         
-            return convertedGTS;
+            ItemResponse<GroupTaskSet> response = await container.CreateItemAsync(item, new PartitionKey(item.tenantid));
+            return response.Resource;
         }
 
-        public async Task<List<GroupTaskSet>> GetGroupTaskSetByTenantAndCase (string caseid, string tenant)
-        {
-            var option = new FeedOptions { EnableCrossPartitionQuery = true };
-
-            var query = from doc in Client.CreateDocumentQuery<GroupTaskSet>(CollectionLink, option)
-                        where (doc.tenantid == tenant) && (doc.caseid == caseid) 
-                        select doc;
-    
-            var gts = await QueryGroupTaskSets(query);
-            List<GroupTaskSet> convertedGTS = gts.ToList();
-
-            return convertedGTS;
-        }
-
-        public GroupTaskSet GetGTSbyGTID(string grouptaskID)
-        {
-            var option = new FeedOptions { EnableCrossPartitionQuery = true };
-
-            var query = new SqlQuerySpec(
-                "SELECT VALUE t FROM Task t JOIN g in t.GroupTask WHERE g.GroupTaskID = @gtid",
-                new SqlParameterCollection()
-                {
-                    new SqlParameter("@gtid", grouptaskID)
-                }
-                );
-
-            dynamic doc = Client.CreateDocumentQuery<dynamic>(CollectionLink, query, option).AsEnumerable().FirstOrDefault();
-
-            GroupTaskSet convertedGTS = null;
-            if (doc != null)
-            {
-                convertedGTS = doc;
-            }
-
-            return convertedGTS;
-        }
-
-        public IndividualTaskSet GetActiveITSbyGTID(string grouptaskID)
-        {
-            var option = new FeedOptions { EnableCrossPartitionQuery = true };
-
-            IQueryable<IndividualTaskSet> query = Client.CreateDocumentQuery<IndividualTaskSet>(CollectionLink, new SqlQuerySpec
-            {
-                QueryText = "SELECT VALUE FROM Task t JOIN g in t.GroupTask JOIN its in g.IndividualTaskSets WHERE g.GroupTaskID = @gtid",
-                Parameters = new SqlParameterCollection()
-                {
-                    new SqlParameter("@gtid", grouptaskID)
-                }
-            }, option
-                );
-
-            return (IndividualTaskSet)query;
-        }
-
-        public ReturnTaskObject GetRTOIDbyITID(string itid)
-        {
-
-            var option = new FeedOptions { EnableCrossPartitionQuery = true };
-
-            var query = new SqlQuerySpec(
-                //"SELECT t.id, t.TaskID FROM Task t JOIN g in t.GroupTask JOIN its in g.IndividualTaskSets JOIN it IN its.IndividualTask WHERE it.IndividualTaskID = @itid",
-                "SELECT t.id, t.TaskID, g.IndividualTaskSets, g.GroupTaskID FROM Task t JOIN g in t.GroupTask JOIN its in g.IndividualTaskSets JOIN it IN its.IndividualTask WHERE it.IndividualTaskID = @itid and (it.IndividualTaskStatus = '' or it.IndividualTaskStatus = 'Open' )",
-                new SqlParameterCollection()
-                {
-                    new SqlParameter("@itid", itid)
-                }
-                );
-
-            dynamic doc = Client.CreateDocumentQuery<dynamic>(CollectionLink, query, option).AsEnumerable().FirstOrDefault();
-            GroupTask returnedGT = new GroupTask();
-
-            ReturnTaskObject rto = new ReturnTaskObject();
-            List<IndividualTaskSet> its = new List<IndividualTaskSet>();
-            Boolean resetLoop = false;
-
-            if (doc != null)
-            {
-
-                rto = doc;
-                //rto.id = returned.id;
-                //rto.taskid = returnedGTS.taskid;
-                its = rto.individualtasksets;
-
-                for (int i = 0; i <= its.Count; i++)
-                {
-                    for (int j=0; j <= its[i].individualtask.Count; j++)
-                    {
-                        if (its[i].individualtask[j].individualtaskid.ToString() == itid)
-                        {
-                            rto.individualtasksetidorindex = i.ToString();
-                            rto.individualtaskidorindex = j.ToString();
-                            resetLoop = true;
-                            break;
-                        }
-                    }
-                    if (resetLoop == true)
-                    {
-                        break;
-                    }
-                }
-            }
-
-            return rto;
-        }
-
-        private static async Task<IEnumerable<GroupTaskSet>> QueryGroupTaskSets<GroupTaskSet>(IQueryable<GroupTaskSet> query)
-        {
-            //this was added to support GetGroupTaskSetByTenantAndCase method so that query can be done asynchronously 
-            var docQuery = query.AsDocumentQuery();
-            var batches = new List<IEnumerable<GroupTaskSet>>();
-
-            do
-            {
-                var batch = await docQuery.ExecuteNextAsync<GroupTaskSet>();
-                batches.Add(batch);
-            }
-
-            while (docQuery.HasMoreResults);
-
-            var docs = batches.SelectMany(b => b);
-            return docs;
-        }
-
-        public async Task<Boolean> UpdateGTSItem(GroupTaskSet updatedGTS)
+        //replaces original GetGroupTaskSetByTenantandCase (string caseid, string tenantid)
+        //this should also removed the need for QueryGroupTaskSets<GroupTaskSet>(IQueryable<GroupTakSet> query
+        public async Task<GroupTaskSet> GetGroupTaskSet(string id, string tenantid)
         {
             try
             {
-                Boolean result = false;
-                string id = updatedGTS.id;
-                var option = new FeedOptions { EnableCrossPartitionQuery = true };
-
-                dynamic doc = Client.CreateDocumentQuery<Document>(CollectionLink, option)
-                    .Where(d => d.Id == id).AsEnumerable().FirstOrDefault();
-
-                if (doc != null)
-                {
-                    ResourceResponse<Document> x = await Client.ReplaceDocumentAsync(doc.SelfLink, updatedGTS);
-                    if (x.StatusCode.ToString() == "OK")
-                    {
-                        result = true;
-                    }
-                    else
-                    {
-                        result = false;
-                    }
-                }
-                else
-                {
-                    result = false;
-                }
-
-                return result;
+                ItemResponse<GroupTaskSet> response = await container.ReadItemAsync<GroupTaskSet>(id, new PartitionKey(tenantid));
+                return response.Resource;
             }
-            catch (Exception e)
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                Boolean errResult = false;
-                return errResult;
+                return null;
             }
         }
 
-        /*
-
-        [AcceptVerbs("GET")]
-        [HttpGet]
-        public async Task<List<Models.Person>> GetActivePeopleByTenantandAppandType(string tenant, string appname, string objecttype)
+        public async Task<GroupTaskSet> GetGroupTaskSetByProjectId(string projectid, string tenantid)
         {
-            var query = from doc in Client.CreateDocumentQuery<Models.Person>(CollectionLink)
-                        where (doc.Tenant == tenant) && (doc.App == appname) && (doc.Type == objecttype)
-                        select doc;
+            var query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.ProjectID = @projectid AND c.TenantID = @tenantid")
+                .WithParameter("@projectid", projectid)
+                .WithParameter("@tenantid", tenantid);
 
-            var people = await QueryPeople(query);
+            using (FeedIterator<GroupTaskSet> resultSet = container.GetItemQueryIterator<GroupTaskSet>(
+                query,
+                requestOptions: new QueryRequestOptions
+                {
+                    PartitionKey = new PartitionKey(tenantid)
+                }))
+            {
+                while (resultSet.HasMoreResults)
+                {
+                    FeedResponse<GroupTaskSet> response = await resultSet.ReadNextAsync();
+                    GroupTaskSet item = response.FirstOrDefault();
+                    if (item != null)
+                    {
+                        return item;
+                    }
+                }
+            }
 
-            List<Person.Models.Person> convertedPeople = people.ToList();
-
-            return convertedPeople;
-
+            return null; // or throw an exception if you want to require a match
         }
 
-        [AcceptVerbs("GET")]
-        [HttpGet]
-        public async Task<List<Models.Person>> GetPeronsByName(string tenant, string appname, string objecttype, string Name)
+
+        //replaces original UpdateGTSbyId(GroupTaskSet updatedGTS)
+        public async Task<bool> UpdateGroupTaskSet(string id, string tenantid, GroupTaskSet updatedItem)
         {
-
-            //if the entity returned by Luis contains 2 names then split the name so that a query is done by first and last name
-            if (Name.Contains(' ') == true)
-            {
-                string[] names = Name.Split(' ');
-                var query = from doc in Client.CreateDocumentQuery<Models.Person>(CollectionLink)
-                            where (doc.Tenant == tenant) && (doc.App == appname) && (doc.Type == objecttype) && (doc.FName == names[0]) && (doc.LastName == names[1])
-                            select doc;
-
-                var people = await QueryPeople(query);
-                List<Person.Models.Person> convertedPeople = people.ToList();
-
-                return convertedPeople;
-            }
-            else
-            //if the entity returned by LUIS contains only 1 name then search the last name
-            {
-                var query = from doc in Client.CreateDocumentQuery<Models.Person>(CollectionLink)
-                            where (doc.Tenant == tenant) && (doc.App == appname) && (doc.Type == objecttype) && (doc.LastName == Name)
-                            select doc;
-
-                var people = await QueryPeople(query);
-                List<Person.Models.Person> convertedPeople = people.ToList();
-
-                return convertedPeople;
-            }
-
-
-        } */
-
-        //private static async Task<IEnumerable<Person>> QueryPeople<Person>(IQueryable<Person> query)
-        //{
-        //    //this was added to support GetActivePeopleByTenantandAppandType method so that query can be done asynchronously 
-        //    var docQuery = query.AsDocumentQuery();
-        //    var batches = new List<IEnumerable<Person>>();
-
-        //    do
-        //    {
-        //        var batch = await docQuery.ExecuteNextAsync<Person>();
-        //        batches.Add(batch);
-        //    }
-
-        //    while (docQuery.HasMoreResults);
-
-        //    var docs = batches.SelectMany(b => b);
-        //    return docs;
-        //}
-
-
-
-        public async Task<string> UpdateIT(ReturnTaskObject rto, IndividualTask updatedIT, string path)
-        {
-
             try
             {
-                string jsonPath = "/GroupTask/0/IndividualTaskSets/" + rto.individualtasksetidorindex.ToString() +"/IndividualTask/" + rto.individualtaskidorindex.ToString();
-                Container container = CosmosClient.GetContainer("bloomskyHealth", "Task");
+                updatedItem.id = id;
+                updatedItem.tenantid = tenantid;
 
-                // var response = await container.PatchItemAsync<IndvidualTask>
-                ItemResponse<GroupTask> response = await container.PatchItemAsync<GroupTask>(
-                    id: rto.id,
-                    partitionKey: new Microsoft.Azure.Cosmos.PartitionKey(rto.taskid),
-                    patchOperations: new[] { PatchOperation.Set(jsonPath, updatedIT) }
-                    );
-                string status = response.StatusCode.ToString();
-                return status;
+                ItemResponse<GroupTaskSet> response = await container.ReplaceItemAsync(updatedItem, id, new PartitionKey(tenantid));
+                return true;
             }
-            catch (Exception e)
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                System.Diagnostics.StackTrace t = new System.Diagnostics.StackTrace();
-                return t.ToString();
-                //return e.Message;
+                return false;
             }
         }
 
-
-        public async Task<string> UpdateGTProp(string propname, string propvalue, string cosmosid, string taskid)
-        //Update a single property in Group Task assumping you have the id (cosmosid), the partiion key
+        public async Task<bool> DeleteGroupTaskSet(string id, string tenantid)
         {
-
             try
             {
-                string jsonPath = "/GroupTask/0/" + propname;
-                Container container = CosmosClient.GetContainer("bloomskyHealth", "Task");
-
-                // var response = await container.PatchItemAsync<IndvidualTask>
-                ItemResponse<GroupTask> response = await container.PatchItemAsync<GroupTask>(
-                    id: cosmosid,
-                    partitionKey: new Microsoft.Azure.Cosmos.PartitionKey(taskid),
-                    patchOperations: new[] { PatchOperation.Replace(jsonPath, propvalue) }
-                    );
-                string status = response.StatusCode.ToString();
-                return status;
+                await container.DeleteItemAsync<GroupTaskSet>(id, new PartitionKey(tenantid));
+                return true;
             }
-            catch (Exception e)
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                System.Diagnostics.StackTrace t = new System.Diagnostics.StackTrace();
-                return t.ToString();
+                return false;
             }
         }
 
-        private static Uri _collectionLink;
-        //private CosmosClient cosmosClient;
-
-
-
-        private static Uri CollectionLink
+        public async Task<bool> CreateGroupTaskAsync(string id, string TenantID, GroupTask newGroupTask)
         {
-            get
+            try
             {
-                if (_collectionLink == null)
+                var patchOperations = new List<PatchOperation>
                 {
-                    _collectionLink = UriFactory.CreateDocumentCollectionUri("bloomskyHealth", "Task");
-                }
-                return _collectionLink;
+                    PatchOperation.Add("/GroupTask/-", newGroupTask) // Append to the GroupTask array
+                };
+
+                ItemResponse<GroupTaskSet> response = await container.PatchItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(TenantID),
+                    patchOperations: patchOperations
+                );
+
+                return response.StatusCode == System.Net.HttpStatusCode.OK;
+            }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Error adding GroupTask: {ex.StatusCode} - {ex.Message}");
+                return false;
             }
         }
 
-        private static Uri _documentLink;
-
-        private static Uri DocumentLink
+        public async Task<bool> UpdateGroupTaskAsync(string id, string tenantid, GroupTask updGT)
         {
-            get
+            try
             {
-                if (_documentLink == null)
+                // Step 1: Read the document
+                var response = await container.ReadItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(tenantid)
+                );
+                var groupTaskSet = response.Resource;
+
+                // Step 2: Find the index of the GroupTask to replace
+                int index = groupTaskSet.grouptask.FindIndex(gt => gt.grouptaskid == updGT.grouptaskid);
+                if (index == -1)
                 {
-                    _documentLink = UriFactory.CreateDocumentCollectionUri("bloomskyHealth", "Task");
-                }
-                return _collectionLink;
-            }
-        }
-
-
-        private static DocumentClient _client;
-
-        private static DocumentClient Client
-        {
-            get
-            {
-                if (_client == null)
-                {
-                    string endpoint = Environment.GetEnvironmentVariable("endpoint");
-                    string authKey = Environment.GetEnvironmentVariable("authKey");
-                    Uri endpointUri = new Uri(endpoint);
-                    _client = new DocumentClient(endpointUri, authKey);
+                    throw new InvalidOperationException("GroupTask not found in document.");
                 }
 
-                return _client;
+                // Step 3: Perform patch to replace the GroupTask at the correct index
+                var patchOps = new List<PatchOperation>
+                {
+                    PatchOperation.Replace($"/GroupTask/{index}", updGT)
+                };
+
+                await container.PatchItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(tenantid),
+                    patchOperations: patchOps
+                );
+
+                return response.StatusCode == System.Net.HttpStatusCode.OK;
+            }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Error adding GroupTask: {ex.StatusCode} - {ex.Message}");
+                return false;
+            }
+
+        }
+
+        public async Task<bool> CreateIndividualTaskAsync(string id, string tenantid, string gtid,  IndividualTask newIndividualTask)
+        {
+            try
+            {
+                // Step 1: Read the document
+                var response = await container.ReadItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(tenantid)
+                );
+                var groupTaskSet = response.Resource;
+
+                int indGT = groupTaskSet.grouptask.FindIndex(gt => gt.grouptaskid == gtid);
+                var patchOperations = new List<PatchOperation>
+                {
+                    PatchOperation.Add($"/GroupTask/{indGT}/IndividualTaskSets/0/IndividualTask/-", newIndividualTask) // Append to the GroupTask array
+                };
+
+                ItemResponse<GroupTaskSet> addresponse = await container.PatchItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(tenantid),
+                    patchOperations: patchOperations
+                );
+
+                return addresponse.StatusCode == System.Net.HttpStatusCode.OK;
+            }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Error adding GroupTask: {ex.StatusCode} - {ex.Message}");
+                return false;
             }
         }
 
-        private static CosmosClient _cosmosClient;
-        private static CosmosClient CosmosClient
+        public async Task<bool> UpdateIndividualTaskAsync(string id, string tenantid, string grouptaskid, IndividualTask updIT)
         {
-            get
+            try
             {
-                if (_cosmosClient == null)
+                // Step 1: Read the document
+                var response = await container.ReadItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(tenantid)
+                );
+                var groupTaskSet = response.Resource;
+
+
+                // Step 2: Find the index of the IndividualTask to replace by first getting the GT index
+                int indGT = groupTaskSet.grouptask.FindIndex(gt => gt.grouptaskid == grouptaskid);
+                int indIT = groupTaskSet.grouptask[indGT].individualtasksets[0].individualtask.FindIndex(it => it.individualtaskid == updIT.individualtaskid);
+                if (indIT == -1)
                 {
-                    string endpoint = Environment.GetEnvironmentVariable("endpoint");
-                    string authKey = Environment.GetEnvironmentVariable("authKey");
-                    _cosmosClient = new CosmosClient(endpoint, authKey);
+                    throw new InvalidOperationException("Individual Task not found in document.");
                 }
 
-                return _cosmosClient;
+                // Step 3: Perform patch to replace the IndividualTask at the correct index
+                var patchOps = new List<PatchOperation>
+                {
+                    PatchOperation.Replace($"/GroupTask/{indGT}/IndividualTaskSets/0/IndividualTask/{indIT}", updIT)
+                };
+
+                await container.PatchItemAsync<GroupTaskSet>(
+                    id: id,
+                    partitionKey: new PartitionKey(tenantid),
+                    patchOperations: patchOps
+                );
+
+                return response.StatusCode == System.Net.HttpStatusCode.OK;
             }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Error adding Indvidual Task: {ex.StatusCode} - {ex.Message}");
+                return false;
+            }
+
         }
+
 
     }
 }

@@ -5,7 +5,9 @@ VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FunctionTaskApp", "FunctionTaskApp\FunctionTaskApp.csproj", "{FA64DD57-06C9-42FD-BBD7-AF216CDF9645}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProjectApp", "ProjectApp\ProjectApp.csproj", "{34ACB1BC-8E22-4F8D-921B-09F0336CC4C6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ProjectApp", "ProjectApp\ProjectApp.csproj", "{34ACB1BC-8E22-4F8D-921B-09F0336CC4C6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VectorizeJSONContent", "..\VectorizeJSONContent\VectorizeJSONContent.csproj", "{FAFB4F22-088F-4EB3-8AA6-5AC858AC8ED3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{34ACB1BC-8E22-4F8D-921B-09F0336CC4C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{34ACB1BC-8E22-4F8D-921B-09F0336CC4C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{34ACB1BC-8E22-4F8D-921B-09F0336CC4C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FAFB4F22-088F-4EB3-8AA6-5AC858AC8ED3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAFB4F22-088F-4EB3-8AA6-5AC858AC8ED3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAFB4F22-088F-4EB3-8AA6-5AC858AC8ED3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAFB4F22-088F-4EB3-8AA6-5AC858AC8ED3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
