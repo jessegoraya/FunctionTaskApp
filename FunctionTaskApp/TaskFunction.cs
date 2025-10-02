@@ -10,17 +10,18 @@ using Newtonsoft.Json;
 using CMaaS.Task.Model;
 using CMaaS.Task.DAL;
 using CMaaS.Task.Service;
+using System.Collections.Generic;
 
 namespace CMaaS.Task.Function
 {
     public static class FunctionTaskController
     {
-        [FunctionName("CreateGroupTaskSet")]
-        public static async Task<IActionResult> RunCreateGroupTaskSetAsync(
+        [FunctionName("AddGroupTaskSet")]
+        public static async Task<IActionResult> RunAddGroupTaskSetAsync(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = "grouptaskset")] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("CreateGroupTaskSet function processed a request.");
+            log.LogInformation("AddGroupTaskSet function processed a request.");
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             GroupTaskSet newGTS = JsonConvert.DeserializeObject<GroupTaskSet>(requestBody);
@@ -40,7 +41,7 @@ namespace CMaaS.Task.Function
             }
             else
             {
-                return new BadRequestObjectResult("Could not create GroupTaskSet");
+                return new BadRequestObjectResult("Could not add GroupTaskSet");
             }
         }
 
@@ -304,6 +305,29 @@ namespace CMaaS.Task.Function
             {
                 log.LogError(ex, "Failed to deserialize GroupTask.");
                 return new BadRequestObjectResult("Malformed JSON.");
+            }
+        }
+
+        //Get GTS Context DTO objects by Tenant and Person 
+        [FunctionName("GetGTContextDTObyTenantandPerson")]
+        public static async Task<IActionResult> RunGetGroupTaskSetByTenantAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "taskcontextdto/{tenantid}/{person}")] HttpRequest req,
+            string tenantid,
+            string person,
+            ILogger log)
+        {
+            log.LogInformation($"GetGTSDTOyTenantandPerson function processed a request for tenantid: {tenantid}");
+
+            DBUtil dbRepo = new DBUtil();
+            List<TaskContextDTO> result = await dbRepo.GetGTContextDTO(tenantid, person);
+
+            if (result != null)
+            {
+                return new OkObjectResult(result);
+            }
+            else
+            {
+                return new NotFoundResult();
             }
         }
 

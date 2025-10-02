@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using CMaaS.TaskProject.Model;
 using CMaaS.TaskProject.Service;
+using CMaaS.TaskProject.DAL;
 using Microsoft.Azure.Documents;
 
 namespace CMaaS.TaskProject.Function
@@ -41,12 +42,12 @@ namespace CMaaS.TaskProject.Function
                     newProj = data;
 
                     SvcUtil svcUtil = new SvcUtil();
-                    newProj.projectid = svcUtil.Create(newProj.tenantid);
+                    newProj.tenantid = svcUtil.Create(newProj.tenantid);
                     Guid g = Guid.NewGuid();
-                    newProj.id = g.ToString();
+                    newProj.Id = g.ToString();
 
                     DBUtil dbRepo = new DBUtil();
-                    string responseMessage = await dbRepo.InsertProject(newProj);
+                    bool responseMessage = await dbRepo.InsertProject(newProj);
 
                     return new OkObjectResult(responseMessage);
                 }

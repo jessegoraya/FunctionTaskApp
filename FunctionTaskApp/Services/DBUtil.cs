@@ -4,6 +4,8 @@ using Microsoft.Azure.Cosmos;
 using CMaaS.Task.Model;
 using System.Linq;
 using System.Collections.Generic;
+using CMaaS.TaskProject.Model;
+using CMaaS.TaskProject.DAL;
 
 namespace CMaaS.Task.DAL
 {
@@ -72,6 +74,190 @@ namespace CMaaS.Task.DAL
             }
 
             return null; // or throw an exception if you want to require a match
+        }
+
+        public async Task<TaskContextDTO> GetGroupTaskSetByTenantId(string tenantid, string status)
+        {
+            var query = new QueryDefinition(
+                "SELECT * FROM c WHERE c.TenantID = @tenantid AND c.Status = @status")
+                .WithParameter("@status", status)
+                .WithParameter("@tenantid", tenantid);
+
+
+            using (FeedIterator<TaskContextDTO> resultSet = container.GetItemQueryIterator<TaskContextDTO>(
+                query,
+                requestOptions: new QueryRequestOptions
+                {
+                    PartitionKey = new PartitionKey(tenantid)
+                }))
+            {
+                while (resultSet.HasMoreResults)
+                {
+                    FeedResponse<TaskContextDTO> response = await resultSet.ReadNextAsync();
+                    TaskContextDTO item = response.FirstOrDefault();
+                    if (item != null)
+                    {
+                        return item;
+                    }
+                }
+            }
+
+            return null; // or throw an exception if you want to require a match
+        }
+
+        public async Task<List<TaskContextDTO>> GetGTContextDTO(string tenantid, string person)
+        {
+            string strQuery =
+                "SELECT " +
+                "    c.ProjectID, " +
+                "    c.TenantID, " +
+                "    c.id, " +
+                "    c.ExtProjectID, " +
+                "    g.GroupTaskID, " +
+                "    g.GroupTaskTitle, " +
+                "    g.GroupTaskDescription, " +
+                "    g.GroupTaskStatus, " +
+                "    MAX(d.LastGroupTaskDueDate) AS GroupTaskDueDate, " +
+                "    g.GroupTaskClosedDate, " +
+                "    g.AssociatedDocuments, " +
+                "    g.AssociatedLOBItems, " +
+                "    g.GroupTaskType, " +
+                "    g.GroupTaskStage, " +
+                "    g.AssignorStakeholderGroup, " +
+                "    a.AssigneeStakeholderGroup, " +
+                "    g.GroupTaskNotes, " +
+                "    g.FacilitiationComplete, " +
+                "    g.FacilitiationPreviouslyComplete, " +
+                "    g.CancellationSent, " +
+                "    g.ParentGroupTaskID, " +
+                "    g.CreatedBy, " +
+                "    g.CreatedDate, " +
+                "    g.LastModifiedBy, " +
+                "    g.LastModifiedDate, " +
+                "    s.IndividualTaskSetID, " +
+                "    s.ITSCreatedBy, " +
+                "    s.ITSCreatedDate, " +
+                "    i.IndividualTaskID, " +
+                "    i.IndividualTaskStatus, " +
+                "    i.IndividualTaskTitle, " +
+                "    i.IndividualTaskType, " +
+                "    i.IndividualTaskDescription, " +
+                "    i.IndividualTaskNotes, " +
+                "    i.Priority, " +
+                "    i.AssignedPerson, " +
+                "    i.AssociatedRole, " +
+                "    i.PreviouslySent, " +
+                "    i.IndividualTaskAssignedDate, " +
+                "    i.IndividualTaskDueDate, " +
+                "    i.IndividualTaskCancelledDate, " +
+                "    i.IndividualTaskApprovalDecision, " +
+                "    i.IndividualTaskCompletedDate, " +
+                "    i.ITCreatedBy, " +
+                "    i.ITCreatedDate " +
+                "FROM c " +
+                "JOIN g IN c.GroupTask " +
+                "JOIN s IN g.IndividualTaskSets " +
+                "JOIN i IN s.IndividualTask " +
+                "JOIN d IN g.GroupTaskDueDate " +
+                "JOIN a IN g.AssigneeStakeholderGroup " +
+                "WHERE i.AssignedPerson = @person " +
+                "GROUP BY " +
+                "    c.ProjectID, " +
+                "    c.TenantID, " +
+                "    c.id, " +
+                "    c.ExtProjectID, " +
+                "    g.GroupTaskID, " +
+                "    g.GroupTaskTitle, " +
+                "    g.GroupTaskDescription, " +
+                "    g.GroupTaskStatus, " +
+                "    g.GroupTaskClosedDate, " +
+                "    g.AssociatedDocuments, " +
+                "    g.AssociatedLOBItems, " +
+                "    g.GroupTaskType, " +
+                "    g.GroupTaskStage, " +
+                "    g.AssignorStakeholderGroup, " +
+                "    a.AssigneeStakeholderGroup, " +
+                "    g.GroupTaskNotes, " +
+                "    g.FacilitiationComplete, " +
+                "    g.FacilitiationPreviouslyComplete, " +
+                "    g.CancellationSent, " +
+                "    g.ParentGroupTaskID, " +
+                "    g.CreatedBy, " +
+                "    g.CreatedDate, " +
+                "    g.LastModifiedBy, " +
+                "    g.LastModifiedDate, " +
+                "    s.IndividualTaskSetID, " +
+                "    s.ITSCreatedBy, " +
+                "    s.ITSCreatedDate, " +
+                "    i.IndividualTaskID, " +
+                "    i.IndividualTaskStatus, " +
+                "    i.IndividualTaskTitle, " +
+                "    i.IndividualTaskType, " +
+                "    i.IndividualTaskDescription, " +
+                "    i.IndividualTaskNotes, " +
+                "    i.Priority, " +
+                "    i.AssignedPerson, " +
+                "    i.AssociatedRole, " +
+                "    i.PreviouslySent, " +
+                "    i.IndividualTaskAssignedDate, " +
+                "    i.IndividualTaskDueDate, " +
+                "    i.IndividualTaskCancelledDate, " +
+                "    i.IndividualTaskApprovalDecision, " +
+                "    i.IndividualTaskCompletedDate, " +
+                "    i.ITCreatedBy, " +
+                "    i.ITCreatedDate ";
+
+            var query = new QueryDefinition(strQuery)
+                .WithParameter("@person", person);
+
+            try
+            {
+                List<TaskContextDTO> results = new List<TaskContextDTO>();
+
+                using (FeedIterator<TaskContextDTO> resultSet = container.GetItemQueryIterator<TaskContextDTO>(
+                    query,
+                    requestOptions: new QueryRequestOptions
+                    {
+                        PartitionKey = new PartitionKey(tenantid)
+                    }))
+                {
+                    while (resultSet.HasMoreResults)
+                    {
+                        FeedResponse<TaskContextDTO> response = await resultSet.ReadNextAsync();
+                        results.AddRange(response);
+                    }
+                }
+
+                // Enrich results with project info
+                List<string> projectIds = results
+                    .Where(r => !string.IsNullOrEmpty(r.projectid))
+                    .Select(r => r.projectid)
+                    .Distinct()
+                    .ToList();
+
+                //Call Project app DBUtil to return project data based on the project ids from the GTS list
+                var projectLookup = new Dictionary<string, Project>();
+                var projectDBUtil = new CMaaS.TaskProject.DAL.DBUtil();
+
+                projectLookup = await projectDBUtil.GetProjectDatabyProjectIDList(projectIds, tenantid);
+
+                foreach (var task in results)
+                {
+                    if (task.projectid != null && projectLookup.TryGetValue(task.projectid, out var project))
+                    {
+                        task.projectname = project.ProjectNames;
+                        task.projectdescription = project.projectdescription;
+                        task.projecttype = project.projecttype;
+                        task.projectstatus = project.projectstatus;
+                    }
+                }
+
+                return results;
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
         }
 
 

@@ -1,69 +1,62 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using CMaaS.TaskProject.Model;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
-using Microsoft.Azure.Documents.Linq;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Azure.Cosmos;
-using System.Reflection.Metadata;
+using System.Linq;
+using System.Collections.Generic;
+using CMaaS.TaskProject.Model;
 
-namespace CMaaS.TaskProject.Service
+namespace CMaaS.TaskProject.DAL
 {
-    class DBUtil
+    public class DBUtil
     {
 
-        private static CosmosClient CosmosClient
+        private readonly CosmosClient cosmosClient;
+        private readonly Container container;
+
+        private const string DatabaseName = "bloomskyHealth";
+        private const string ContainerName = "Project";
+
+        public DBUtil()
         {
-            get
+            string cosmosConnectionString = Environment.GetEnvironmentVariable("CosmosDBConnection");
+            cosmosClient = new CosmosClient(cosmosConnectionString);
+            container = cosmosClient.GetContainer(DatabaseName, ContainerName);
+        }
+
+
+        public async Task<bool> InsertProject(Project item)
+        {
+            //item.Id ??= Guid.NewGuid().ToString();
+            ItemResponse<Project> response = await container.CreateItemAsync(item, new PartitionKey(item.tenantid));
+            return response.StatusCode == System.Net.HttpStatusCode.OK;
+        }
+
+
+        public async Task<Dictionary<string, Project>> GetProjectDatabyProjectIDList(List<string> projectIds, string tenantid)
+        {
+           //return project data based on a list of project ids being input
+            var projectLookup = new Dictionary<string, Project>();
+            foreach (var pid in projectIds)
             {
-                if (_cosmosClient == null)
+                try
                 {
-                    string endpoint = Environment.GetEnvironmentVariable("endpoint");
-                    string authKey = Environment.GetEnvironmentVariable("authKey");
-                    _cosmosClient = new CosmosClient(endpoint, authKey);
+                    ItemResponse<Project> projectResponse = await container.ReadItemAsync<Project>(
+                        pid,
+                        new PartitionKey(tenantid)
+                    );
+                    projectLookup[pid] = projectResponse.Resource;
+                }
+                catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Project not found, skip
                 }
 
-                return _cosmosClient;
             }
+            return projectLookup;
+
         }
-
-
-        private static Uri _collectionLink;
-        //private CosmosClient cosmosClient;
-        private static CosmosClient _cosmosClient;
-
-
-        private static Uri CollectionLink
-        {
-            get
-            {
-                if (_collectionLink == null)
-                {
-                    _collectionLink = UriFactory.CreateDocumentCollectionUri("bloomskyHealth", "Project");
-                }
-                return _collectionLink;
-            }
-        }
-
-        public async Task<string> InsertProject(Project proj)
-        {
-            Container container = CosmosClient.GetContainer("bloomskyHealth", "Project");
-            ItemResponse<Project> response = await container.CreateItemAsync<Project>(
-            proj,
-            partitionKey: new Microsoft.Azure.Cosmos.PartitionKey(proj.projectid)
-            );
-            
-            string status = response.StatusCode.ToString();
-            return status;
-        }
-
-
-
-
+    }
 }
-}
+
+
 

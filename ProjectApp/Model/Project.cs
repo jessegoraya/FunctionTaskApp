@@ -11,29 +11,29 @@ namespace CMaaS.TaskProject.Model
     {
         //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
-        public string id { get; set; }
+        public string Id { get; set; }
 
         //External Project ID outside of Taslow from a CRM system, Case Management system or something else from the customer, if projects aren't managed in Taslow.
         [JsonProperty(PropertyName = "ExtProjectID")]
-        public string projectid { get; set; }
+        public string ExtProjectID { get; set; }
 
-        [JsonProperty(PropertyName = "ProjectName")]
-        public string projectname { get; set; }
+        [JsonProperty(PropertyName = "projectNames")]
+        public string ProjectNames { get; set; }
 
-        [JsonProperty(PropertyName = "ProjectDescription")]
+        [JsonProperty(PropertyName = "projectDescription")]
         public string projectdescription { get; set; }
 
         //set project type as one of 4 types: Delivery, Maintenance, Administrative, Capture
-        [JsonProperty(PropertyName = "ProjectType")]
+        [JsonProperty(PropertyName = "projectType")]
         public string projecttype { get; set; }
 
         //set 
-        [JsonProperty(PropertyName = "ProjectStatus")]
+        [JsonProperty(PropertyName = "projectStatus")]
         public string projectstatus { get; set; }
 
         //set project status as Open or Archivied
         [JsonProperty(PropertyName = "DescVector")]
-        public string descvector { get; set; }
+        public List<float> descvector { get; set; }
 
         //Contains all of the Asspciated People for a specific project
         [JsonProperty(PropertyName = "AssociatedPeople")]
@@ -49,6 +49,7 @@ namespace CMaaS.TaskProject.Model
 
         //associated tenant with the project
         [JsonProperty(PropertyName = "TenantID")]
+        //CosmosDB stores tenant id as "tenantID in Partiion Key settings and JSON for items
         public string tenantid { get; set; }
     }
 
