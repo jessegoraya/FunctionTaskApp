@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 namespace CMaaS.Task.Model
 {
     public class TaskContextDTO
-    //TaskContextDTO is just the Group Task  with remove lists so evertying from GTS to GT to ITS to IT is flattened to a single row based on the Assignee or Associated Role.  Also includes key fields from other objects like Project Name 
+    //TaskContextDTO merges key fields from both Group Task and Project with remove lists so evertying from GTS to GT to ITS to IT is flattened to a single row based on the Assignee or Associated Role.  Also includes key fields from other objects like Project Name 
     {
       
                 //id from Project Container to link Taslow Project to Taslow GTS
@@ -31,6 +31,7 @@ namespace CMaaS.Task.Model
                 [JsonProperty(PropertyName = "ProjectName")]
                 public string projectname { get; set; }
 
+                //Description of the project
                 [JsonProperty(PropertyName = "ProjectDescription")]
                 public string projectdescription { get; set; }
 
@@ -38,10 +39,9 @@ namespace CMaaS.Task.Model
                 [JsonProperty(PropertyName = "ProjectType")]
                 public string projecttype { get; set; }
 
-                //
+                //Status of the project
                 [JsonProperty(PropertyName = "ProjectStatus")]
                 public string projectstatus { get; set; }
-
 
                 [JsonProperty(PropertyName = "GroupTaskID")]
                 public string grouptaskid { get; set; }
@@ -143,15 +143,15 @@ namespace CMaaS.Task.Model
                 public string individualtaskid { get; set; }
 
                 //Identifies where in a life cycle the task currently lies
-                [JsonProperty(PropertyName = "IndividualTaskStatus", Required = Required.Always)]
+                [JsonProperty(PropertyName = "IndividualTaskStatus")]
                 public string individualtaskstatus { get; set; }
 
                 //Provides a description of the task which is automatically generated from the Group Task
-                [JsonProperty(PropertyName = "IndividualTaskTitle", Required = Required.Always)]
+                [JsonProperty(PropertyName = "IndividualTaskTitle")]
                 public string individualtasktitle { get; set; }
 
                 //Defines the type of task being set
-                [JsonProperty(PropertyName = "IndividualTaskType", Required = Required.Always)]
+                [JsonProperty(PropertyName = "IndividualTaskType")]
                 public string individualtasktype { get; set; }
 
                 //Provides a description of the task which is automatically generated from the Group Task

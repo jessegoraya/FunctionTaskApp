@@ -55,6 +55,33 @@ namespace CMaaS.TaskProject.DAL
             return projectLookup;
 
         }
+
+        public async Task<List<string>> GetProjectIdsForManagerAsync(string userEmail, string tenantid)
+        {
+            var query = new QueryDefinition(
+                "SELECT p.id AS ProjectID FROM p JOIN m IN p.AssociatedManagers WHERE m.personEmail = @email and p.tenantID = @tenantID"
+            )
+                .WithParameter("@email", userEmail)
+                .WithParameter("@tenantID", tenantid);
+
+            var results = new List<string>();
+            var requestOptions = new QueryRequestOptions
+            {
+                PartitionKey = new PartitionKey(tenantid) 
+            };
+
+            using (var iterator = container.GetItemQueryIterator<dynamic>(query, requestOptions: requestOptions))
+            {
+                while (iterator.HasMoreResults)
+                {
+                    foreach (var item in await iterator.ReadNextAsync())
+                    {
+                        results.Add(item.ProjectID.ToString());
+                    }
+                }
+            }
+            return results;
+        }
     }
 }
 

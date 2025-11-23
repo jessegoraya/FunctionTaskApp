@@ -35,9 +35,13 @@ namespace CMaaS.TaskProject.Model
         [JsonProperty(PropertyName = "DescVector")]
         public List<float> descvector { get; set; }
 
-        //Contains all of the Asspciated People for a specific project
+        //Contains all of the Asspciated People for a specific project.  They see tasks associated to them in the My Tasks or Individual Tasks view of the app
         [JsonProperty(PropertyName = "AssociatedPeople")]
         public List<AssociatedPeople> associatedpeople { get; set; }
+
+        //Contains all of the Asspciated Managers for a specific project.  They get access to all tasks on the proejct in the Project Tasks view of the app
+        [JsonProperty(PropertyName = "AssociatedManagers")]
+        public List<AssociatedPeople> associatedmanagers { get; set; }
 
         //Date the project was created
         [JsonProperty(PropertyName = "DateCreated")]
@@ -71,5 +75,6 @@ namespace CMaaS.TaskProject.Model
         public string personemail { get; set; }
 
     }
+
 
 }

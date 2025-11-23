@@ -10,7 +10,9 @@ using Newtonsoft.Json;
 using CMaaS.Task.Model;
 using CMaaS.Task.DAL;
 using CMaaS.Task.Service;
+using CMaaS.TaskProject.DAL;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CMaaS.Task.Function
 {
@@ -32,7 +34,7 @@ namespace CMaaS.Task.Function
             }
 
             newGTS.id = Guid.NewGuid().ToString();
-            DBUtil dbRepo = new DBUtil();
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
             GroupTaskSet result = await dbRepo.InsertGroupTaskSet(newGTS);
 
             if (result != null && !string.IsNullOrEmpty(result.id))
@@ -55,7 +57,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"GetGroupTaskSetById function processed a request for id: {id}, tenantid: {tenantid}");
 
-            DBUtil dbRepo = new DBUtil();
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
             GroupTaskSet result = await dbRepo.GetGroupTaskSet(id, tenantid);
 
             if (result != null)
@@ -78,7 +80,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"GetGroupTaskSetByCaseId function processed a request for id: {projectid}, tenantid: {tenantid}");
 
-            DBUtil dbRepo = new DBUtil();
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
             GroupTaskSet result = await dbRepo.GetGroupTaskSetByProjectId(projectid, tenantid);
 
             if (result != null)
@@ -108,7 +110,7 @@ namespace CMaaS.Task.Function
                 return new BadRequestObjectResult("Invalid payload");
             }
 
-            DBUtil dbRepo = new DBUtil();
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
             bool result = await dbRepo.UpdateGroupTaskSet(id, tenantid, updatedGTS);
 
             if (result != true)
@@ -130,7 +132,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"DeleteGroupTaskSet function processed a request for id: {id}, tenantid: {tenantid}");
 
-            DBUtil dbRepo = new DBUtil();
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
             bool deleted = await dbRepo.DeleteGroupTaskSet(id, tenantid);
 
             if (deleted)
@@ -171,7 +173,7 @@ namespace CMaaS.Task.Function
                 SvcUtil svc = new SvcUtil();
                 NewGT = svc.SetNewIDs(NewGT);
 
-                DBUtil dbRepo = new DBUtil();
+                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
                 bool success = await dbRepo.CreateGroupTaskAsync(id, tenantid, NewGT);
                 if (success)
                 {
@@ -207,7 +209,7 @@ namespace CMaaS.Task.Function
 
                 }
 
-                DBUtil dbRepo = new DBUtil();
+                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
                 bool success = await dbRepo.UpdateGroupTaskAsync(id, tenantid, updGT);
                 if (success)
                 {
@@ -253,7 +255,7 @@ namespace CMaaS.Task.Function
                 SvcUtil svc = new SvcUtil();
                 NewIT = svc.SetNewITIDs(NewIT);
 
-                DBUtil dbRepo = new DBUtil();
+                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
                 bool success = await dbRepo.CreateIndividualTaskAsync(id, tenantid, gtid, NewIT);
 
                 if (success)
@@ -290,7 +292,7 @@ namespace CMaaS.Task.Function
 
                 }
 
-                DBUtil dbRepo = new DBUtil();
+                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
                 bool success = await dbRepo.UpdateIndividualTaskAsync(id, tenantid, gtid, updIT);
                 if (success)
                 {
@@ -318,7 +320,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"GetGTSDTOyTenantandPerson function processed a request for tenantid: {tenantid}");
 
-            DBUtil dbRepo = new DBUtil();
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
             List<TaskContextDTO> result = await dbRepo.GetGTContextDTO(tenantid, person);
 
             if (result != null)
@@ -329,6 +331,32 @@ namespace CMaaS.Task.Function
             {
                 return new NotFoundResult();
             }
+        }
+
+        //Provide a manager name so that you can return on all tasks across projects where that user is a manager
+        [FunctionName("GetTasksForManagedProjects")]
+        public static async Task<IActionResult> GetTasksForManagedProjects(
+        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "getmgrtaskcontextdto/{tenantid}/{manager}")] HttpRequest req,
+        string tenantid,
+        string manager, 
+        ILogger log)
+        {
+            if (string.IsNullOrEmpty(manager))
+                return new BadRequestObjectResult("Manager email is required.");
+
+            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
+            CMaaS.TaskProject.DAL.DBUtil projdbRepo = new CMaaS.TaskProject.DAL.DBUtil();
+
+            // Step 1: Get all project IDs where user is a manager
+            var projectIds = await projdbRepo.GetProjectIdsForManagerAsync(manager, tenantid);
+
+            if (projectIds == null || !projectIds.Any())
+                return new OkObjectResult(new List<TaskContextDTO>()); // no results
+
+            // Step 2: Fetch all tasks for those project IDs
+            var tasks = await dbRepo.GetTasksByProjectIdsAsync(tenantid, projectIds);
+
+            return new OkObjectResult(tasks);
         }
 
     }

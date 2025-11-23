@@ -13,7 +13,7 @@ namespace CMaaS.Task.DAL
     {
         private readonly CosmosClient cosmosClient;
         private readonly Container container;
-
+        private object log;
         private const string DatabaseName = "bloomskyHealth";
         private const string ContainerName = "GroupTaskSet";
 
@@ -103,6 +103,73 @@ namespace CMaaS.Task.DAL
             }
 
             return null; // or throw an exception if you want to require a match
+        }
+
+        //Gets all tasks for an array of projects (e.g. get all tasks where a user is a manager on projects)
+        public async Task<List<TaskContextDTO>> GetTasksByProjectIdsAsync(string tenantId, IEnumerable<string> projectIds)
+        {
+            try
+            {
+                // Normalize projectId list to strings
+                var projectList = projectIds?
+                    .Select(p => p.ToString())
+                    .ToList() ?? new List<string>();
+
+                if (!projectList.Any())
+                {
+                    return new List<TaskContextDTO>();
+                }
+
+                // Query text with correct casing for TenantID
+                string queryText =
+                    "SELECT * FROM c " +
+                    "WHERE c.TenantID = @tenantId " +
+                    "AND ARRAY_CONTAINS(@projectIds, c.ProjectID)";
+
+                var query = new QueryDefinition(queryText)
+                    .WithParameter("@tenantId", tenantId)
+                    .WithParameter("@projectIds", projectList);
+
+                var requestOptions = new QueryRequestOptions
+                {
+                    PartitionKey = new PartitionKey(tenantId)
+                };
+
+                var results = new List<TaskContextDTO>();
+
+                using (var iterator = container.GetItemQueryIterator<TaskContextDTO>(
+                    query,
+                    requestOptions: requestOptions))
+                {
+                    while (iterator.HasMoreResults)
+                    {
+                        var page = await iterator.ReadNextAsync();
+                        results.AddRange(page);
+                    }
+                }
+
+
+                return results;
+            }
+            catch (CosmosException cex)
+            {
+                // Specific Cosmos DB exception with status + substatus
+                Console.WriteLine(
+                    $"CosmosException in GetTasksByProjectIdsAsync. " +
+                    $"StatusCode: {cex.StatusCode}, SubStatusCode: {cex.SubStatusCode}, " +
+                    $"Tenant: {tenantId}, Projects: {string.Join(",", projectIds ?? new List<string>())}");
+
+                throw;  // rethrow preserves stack trace
+            }
+            catch (Exception ex)
+            {
+                // Generic unexpected exception
+                Console.WriteLine(
+                    $"Unexpected exception in GetTasksByProjectIdsAsync. Tenant: {tenantId}, " +
+                    $"Projects: {string.Join(",", projectIds ?? new List<string>())}");
+
+                throw;
+            }
         }
 
         public async Task<List<TaskContextDTO>> GetGTContextDTO(string tenantid, string person)
