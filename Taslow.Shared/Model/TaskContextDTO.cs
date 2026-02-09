@@ -1,36 +1,46 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace Taslow.Task.Model
+namespace Taslow.Shared.Model
 {
-    public class GroupTaskSet
+    public class TaskContextDTO
     {
-       
-        //Contains all of Group Tasks for a specific case, event, item, person/organization (or largest centralizing object)
-        [JsonProperty(PropertyName = "GroupTask")]
-        public List<GroupTask> grouptask { get; set; }
 
         //id from Project Container to link Taslow Project to Taslow GTS
         [JsonProperty(PropertyName = "ProjectID")]
-        public string caseid { get; set; }
+        public string projectid { get; set; }
 
         //associated tenant using 
         [JsonProperty(PropertyName = "TenantID")]
         public string tenantid { get; set; }
 
-        //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
+        //**Project Field: associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
         public string id { get; set; }
 
+        //**Project Field:External Project ID outside of Taslow from a CRM system, Case Management system or something else from the customer, if projects aren't managed in Taslow.
+        [JsonProperty(PropertyName = "ExtProjectID")]
+        public string extprojectid { get; set; }
 
-    }
+        //**Project Field:
+        [JsonProperty(PropertyName = "ProjectName")]
+        public string projectname { get; set; }
 
-    public class GroupTask
-    {
-        [JsonProperty(PropertyName = "_type")]
-        public string _type { get; set; }
+        //Description of the project
+        [JsonProperty(PropertyName = "ProjectDescription")]
+        public string projectdescription { get; set; }
+
+        //set project type as one of 4 types: Delivery, Support, Administrative, Capture
+        [JsonProperty(PropertyName = "ProjectType")]
+        public string projecttype { get; set; }
+
+        //Status of the project
+        [JsonProperty(PropertyName = "ProjectStatus")]
+        public string projectstatus { get; set; }
 
         [JsonProperty(PropertyName = "GroupTaskID")]
         public string grouptaskid { get; set; }
@@ -49,23 +59,23 @@ namespace Taslow.Task.Model
 
         //Date the that Action that needs to be completed is due
         [JsonProperty(PropertyName = "GroupTaskDueDate")]
-        public List<GroupTaskDueDate> grouptaskduedate { get; set; }
+        public DateTime grouptaskduedate { get; set; }
 
         //Date the Group Task was closed once the last action has been take against the task
         [JsonProperty(PropertyName = "GroupTaskClosedDate")]
         public DateTime grouptaskcloseddate { get; set; }
 
         //Any documents associated to the Group Task.  The list of available documents are those that are associated to the Group Task and are accessible to either the group of the user that is viewing the Group Task
-        [JsonProperty(PropertyName = "AssoicatedDocuments")]
+        [JsonProperty(PropertyName = "AssociatedDocuments")]
         public List<AssoicatedDocument> assoicateddocuments { get; set; }
 
         //An abstract concept shown to identify that depending on the Task Type the user will have different LOB items that can be selected from the drop down   This allows the user to know which items they are working on 
-        [JsonProperty(PropertyName = "AssoicatedLOBItems")]
+        [JsonProperty(PropertyName = "AssociatedLOBItems")]
         public List<AssociatedLOBItem> assoicatedlobitems { get; set; }
 
         //Value of the type of Task associated to the Group Task
         [JsonProperty(PropertyName = "GroupTaskType")]
-        public string grouptasktypeid { get; set; }
+        public string grouptasktype { get; set; }
 
         //Identified the phase in which the Case Stage currently live within an open status as one of the following phases of Awaiting Assignment, Drafting, Reviewing, Approving.  If the Group Task status is set to the closed the stage provides the user at what stage in the lifecycle it was closed.
         [JsonProperty(PropertyName = "GroupTaskStage")]
@@ -73,11 +83,11 @@ namespace Taslow.Task.Model
 
         //The office/group making the request for work to be completed
         [JsonProperty(PropertyName = "AssignorStakeholderGroup")]
-        public AssignorStakeholderGroup assignorstakeholdergroup { get; set; }
+        public string assignorstakeholdergroup { get; set; }
 
         //The office(s)/group(s) which will be carrying out the work. 1 for 1 with Assignor on Approve/Produce Tasks but maybe 1 to many on Send Group Tasks
         [JsonProperty(PropertyName = "AssigneeStakeholderGroup")]
-        public List<AssigneeStakeholderGroup> assigneestakeholdergroup { get; set; }
+        public string assigneestakeholdergroup { get; set; }
 
         //Additional notes for the assingee as they process the request
         [JsonProperty(PropertyName = "GroupTaskNotes")]
@@ -99,61 +109,48 @@ namespace Taslow.Task.Model
         public Guid parentgrouptaskid { get; set; }
 
         //The user who initially created the Group Task
-        [JsonProperty(PropertyName = "CreatedBy")]
-        public string createdby { get; set; }
+        [JsonProperty(PropertyName = "GTCreatedBy")]
+        public string gtcreatedby { get; set; }
 
         //Date captured by the system identifying the creation of the Group Task within the system
-        [JsonProperty(PropertyName = "CreatedDate")]
-        public DateTime createddate { get; set; }
+        [JsonProperty(PropertyName = "GTCreatedDate")]
+        public DateTime gtcreateddate { get; set; }
 
         //The user who last modified the Group Task
-        [JsonProperty(PropertyName = "LastModifiedBy")]
-        public string lastmodifiedby { get; set; }
+        [JsonProperty(PropertyName = "GTLastModifiedBy")]
+        public string gtlastmodifiedby { get; set; }
 
         //Date captured by the system identifying the last modified date of the Group Task instance within the system
-        [JsonProperty(PropertyName = "LastModifiedDate")]
-        public DateTime lastmodifieddate { get; set; }
+        [JsonProperty(PropertyName = "GTLastModifiedDate")]
+        public DateTime gtlastmodifieddate { get; set; }
 
-        //Individual task array under the Group Task
-        [JsonProperty(PropertyName = "IndividualTaskSets")]
-        public List<IndividualTaskSet> individualtasksets { get; set; }
-    }
-
-    public class IndividualTaskSet
-    {
+        //Individual Task Set
         //Contains 1 or more of the individual tasks seperated by type (facilitator, sme, review, approve) 
         [JsonProperty(PropertyName = "IndividualTaskSetID")]
         public string individualtasksetid { get; set; }
 
         //The user who initially created the Group Task
-        [JsonProperty(PropertyName = "CreatedBy")]
-        public string createdby { get; set; }
+        [JsonProperty(PropertyName = "ITSCreatedBy")]
+        public string GTcreatedby { get; set; }
 
         //Date captured by the system identifying the creation of the Group Task within the system
-        [JsonProperty(PropertyName = "CreatedDate")]
-        public DateTime createddate { get; set; }
+        [JsonProperty(PropertyName = "ITSCreatedDate")]
+        public DateTime GTcreateddate { get; set; }
 
-        //Individual task array under the Group Task
-        [JsonProperty(PropertyName = "IndividualTask")]
-        public List<IndividualTask> individualtask { get; set; }
-    }
-
-    public class IndividualTask
-    {
         //unique id for the individual task
         [JsonProperty(PropertyName = "IndividualTaskID")]
         public string individualtaskid { get; set; }
 
         //Identifies where in a life cycle the task currently lies
-        [JsonProperty(PropertyName = "IndividualTaskStatus", Required = Required.Always)]
+        [JsonProperty(PropertyName = "IndividualTaskStatus")]
         public string individualtaskstatus { get; set; }
 
         //Provides a description of the task which is automatically generated from the Group Task
-        [JsonProperty(PropertyName = "IndividualTaskTitle", Required = Required.Always)]
+        [JsonProperty(PropertyName = "IndividualTaskTitle")]
         public string individualtasktitle { get; set; }
 
         //Defines the type of task being set
-        [JsonProperty(PropertyName = "IndividualTaskType", Required = Required.Always)]
+        [JsonProperty(PropertyName = "IndividualTaskType")]
         public string individualtasktype { get; set; }
 
         //Provides a description of the task which is automatically generated from the Group Task
@@ -201,18 +198,14 @@ namespace Taslow.Task.Model
         public DateTime individualtaskcompleteddate { get; set; }
 
         //The user who initially created the Group Task
-        [JsonProperty(PropertyName = "CreatedBy")]
-        public string createdby { get; set; }
+        [JsonProperty(PropertyName = "ITCreatedBy")]
+        public string ITcreatedby { get; set; }
 
         //Date captured by the system identifying the creation of the Group Task within the system
-        [JsonProperty(PropertyName = "CreatedDate")]
-        public DateTime createddate { get; set; }
+        [JsonProperty(PropertyName = "ITCreatedDate")]
+        public DateTime ITcreateddate { get; set; }
+     }
 
-        public static implicit operator IndividualTask(List<IndividualTask> v)
-        {
-            throw new NotImplementedException();
-        }
-    }
 
     public class AssoicatedDocument
     {
@@ -275,35 +268,6 @@ namespace Taslow.Task.Model
 
         [JsonProperty(PropertyName = "AssigneeStakeholderGroup")]
         public string assigneestakeholdergroup { get; set; }
-    }
-
-    public class ReturnTaskObject
-    {
-        // get ids for a Task Object subelements - (id, gtid, itsid(s), itid(s))
-
-        [JsonProperty(PropertyName = "Valid")]
-        //used to set if what is being returned was not setReturnTaskObject rto
-        public Boolean valid { get; set; }
-
-        [JsonProperty(PropertyName = "ProjectID")]
-        public string projectid { get; set; }
-
-        [JsonProperty(PropertyName = "TenantID")]
-        public string tenantid { get; set; }
-
-        [JsonProperty(PropertyName = "id")]
-        public string id { get; set; }
-
-        [JsonProperty(PropertyName = "GroupTaskID")]
-        public string grouptaskid { get; set; }
-
-        [JsonProperty(PropertyName = "IndividualTaskSetID")]
-        public string individualtasksetid { get; set; }
-
-        [JsonProperty(PropertyName = "IndividualTaskID")]
-        public string individualtaskidorindex { get; set; }
-
-
     }
 }
 

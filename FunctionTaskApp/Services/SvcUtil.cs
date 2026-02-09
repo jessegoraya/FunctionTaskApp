@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using CMaaS.Task.Model;
+using Taslow.Task.Model;
 using System.Security.Cryptography;
 
-namespace CMaaS.Task.Service
+namespace Taslow.Task.Service
 {
     class SvcUtil
     {

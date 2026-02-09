@@ -4,22 +4,18 @@
 		<TargetFramework>net6.0</TargetFramework>
 		<AzureFunctionsVersion>v4</AzureFunctionsVersion>
 		<OutputType>Library</OutputType>
-		<ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<!-- Azure Functions SDK -->
+		<PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
 		<PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
-		<PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Http" Version="3.2.0" />
-		<PackageReference Include="Microsoft.Azure.WebJobs.Script.ExtensionsMetadataGenerator" Version="4.0.1" />
-
-		<!-- Cosmos DB SDK (only keep one) -->
+		<!-- Cosmos DB SDK -->
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.34.0" />
-		<!-- Removed: Microsoft.Azure.DocumentDB.Core to avoid conflict -->
+	</ItemGroup>
 
-		<!-- JSON Support -->
-		<PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.0" />
-
+	<ItemGroup>
+	  <ProjectReference Include="..\Taslow.Shared\Taslow.Shared.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -30,14 +26,6 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>Never</CopyToPublishDirectory>
 		</None>
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="System.Diagnostics.DiagnosticSource" Version="6.0.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <ProjectReference Include="..\ProjectApp\ProjectApp.csproj" />
 	</ItemGroup>
 
 </Project>

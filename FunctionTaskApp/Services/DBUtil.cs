@@ -1,28 +1,177 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Microsoft.Azure.Cosmos;
-using CMaaS.Task.Model;
+using Taslow.Task.Model;
 using System.Linq;
 using System.Collections.Generic;
-using CMaaS.TaskProject.Model;
-using CMaaS.TaskProject.DAL;
+using Taslow.Shared.Model;
+using Taslow.Task.Client;
+using Taslow.Task.DAL.Interface;
+using Taslow.Task.Client.Interface;
 
-namespace CMaaS.Task.DAL
+
+namespace Taslow.Task.DAL
 {
-    public class DBUtil
+    public class DBUtil : ITaskDBUtil
     {
         private readonly CosmosClient cosmosClient;
         private readonly Container container;
+        private readonly IProjectServiceClient _projectServiceClient;
         private object log;
         private const string DatabaseName = "bloomskyHealth";
         private const string ContainerName = "GroupTaskSet";
 
-        public DBUtil()
+        public DBUtil(IProjectServiceClient projectServiceClient)
         {
             string cosmosConnectionString = Environment.GetEnvironmentVariable("CosmosDBConnection");
             cosmosClient = new CosmosClient(cosmosConnectionString);
             container = cosmosClient.GetContainer(DatabaseName, ContainerName);
+            _projectServiceClient = projectServiceClient;
         }
+
+        public string TaskContextDTOSelectQuery()
+        {
+            string selectquery =
+               "SELECT " +
+               "    c.ProjectID, " +
+               "    c.TenantID, " +
+               "    c.id, " +
+               "    c.ExtProjectID, " +
+               "    g.GroupTaskID, " +
+               "    g.GroupTaskTitle, " +
+               "    g.GroupTaskDescription, " +
+               "    g.GroupTaskStatus, " +
+               "    MAX(d.LastGroupTaskDueDate) AS GroupTaskDueDate, " +
+               "    g.GroupTaskClosedDate, " +
+               "    g.AssociatedDocuments, " +
+               "    g.AssociatedLOBItems, " +
+               "    g.GroupTaskType, " +
+               "    g.GroupTaskStage, " +
+               "    g.AssignorStakeholderGroup, " +
+               "    a.AssigneeStakeholderGroup, " +
+               "    g.GroupTaskNotes, " +
+               "    g.FacilitiationComplete, " +
+               "    g.FacilitiationPreviouslyComplete, " +
+               "    g.CancellationSent, " +
+               "    g.ParentGroupTaskID, " +
+               "    g.CreatedBy, " +
+               "    g.CreatedDate, " +
+               "    g.LastModifiedBy, " +
+               "    g.LastModifiedDate, " +
+               "    s.IndividualTaskSetID, " +
+               "    s.ITSCreatedBy, " +
+               "    s.ITSCreatedDate, " +
+               "    i.IndividualTaskID, " +
+               "    i.IndividualTaskStatus, " +
+               "    i.IndividualTaskTitle, " +
+               "    i.IndividualTaskType, " +
+               "    i.IndividualTaskDescription, " +
+               "    i.IndividualTaskNotes, " +
+               "    i.Priority, " +
+               "    i.AssignedPerson, " +
+               "    i.AssociatedRole, " +
+               "    i.PreviouslySent, " +
+               "    i.IndividualTaskAssignedDate, " +
+               "    i.IndividualTaskDueDate, " +
+               "    i.IndividualTaskCancelledDate, " +
+               "    i.IndividualTaskApprovalDecision, " +
+               "    i.IndividualTaskCompletedDate, " +
+               "    i.ITCreatedBy, " +
+               "    i.ITCreatedDate " +
+               "FROM c " +
+               "JOIN g IN c.GroupTask " +
+               "JOIN s IN g.IndividualTaskSets " +
+               "JOIN i IN s.IndividualTask " +
+               "JOIN d IN g.GroupTaskDueDate " +
+               "JOIN a IN g.AssigneeStakeholderGroup ";
+
+            return selectquery;
+        }
+
+        public string TaskContextDTOGroupBy()
+        {
+            string groupbyquery =
+             "GROUP BY " +
+             "    c.ProjectID, " +
+             "    c.TenantID, " +
+             "    c.id, " +
+             "    c.ExtProjectID, " +
+             "    g.GroupTaskID, " +
+             "    g.GroupTaskTitle, " +
+             "    g.GroupTaskDescription, " +
+             "    g.GroupTaskStatus, " +
+             "    g.GroupTaskClosedDate, " +
+             "    g.AssociatedDocuments, " +
+             "    g.AssociatedLOBItems, " +
+             "    g.GroupTaskType, " +
+             "    g.GroupTaskStage, " +
+             "    g.AssignorStakeholderGroup, " +
+             "    a.AssigneeStakeholderGroup, " +
+             "    g.GroupTaskNotes, " +
+             "    g.FacilitiationComplete, " +
+             "    g.FacilitiationPreviouslyComplete, " +
+             "    g.CancellationSent, " +
+             "    g.ParentGroupTaskID, " +
+             "    g.CreatedBy, " +
+             "    g.CreatedDate, " +
+             "    g.LastModifiedBy, " +
+             "    g.LastModifiedDate, " +
+             "    s.IndividualTaskSetID, " +
+             "    s.ITSCreatedBy, " +
+             "    s.ITSCreatedDate, " +
+             "    i.IndividualTaskID, " +
+             "    i.IndividualTaskStatus, " +
+             "    i.IndividualTaskTitle, " +
+             "    i.IndividualTaskType, " +
+             "    i.IndividualTaskDescription, " +
+             "    i.IndividualTaskNotes, " +
+             "    i.Priority, " +
+             "    i.AssignedPerson, " +
+             "    i.AssociatedRole, " +
+             "    i.PreviouslySent, " +
+             "    i.IndividualTaskAssignedDate, " +
+             "    i.IndividualTaskDueDate, " +
+             "    i.IndividualTaskCancelledDate, " +
+             "    i.IndividualTaskApprovalDecision, " +
+             "    i.IndividualTaskCompletedDate, " +
+             "    i.ITCreatedBy, " +
+             "    i.ITCreatedDate ";
+
+            return groupbyquery;
+        }
+
+
+        public async Task<List<TaskContextDTO>> EnrichTaskDatawithProjectInfo(
+            List<TaskContextDTO> taskData,
+            string tenantId)
+        {
+            var projectIds = taskData
+                .Where(t => !string.IsNullOrEmpty(t.projectid))
+                .Select(t => t.projectid)
+                .Distinct()
+                .ToList();
+
+            if (!projectIds.Any())
+                return taskData;
+
+            var projectLookup = await _projectServiceClient.GetProjectsAsync(projectIds, tenantId);
+
+            foreach (var task in taskData)
+            {
+                if (task.projectid != null &&
+                    projectLookup.TryGetValue(task.projectid, out var project))
+                {
+                    task.projectname = project.ProjectName;
+                    task.projectdescription = project.ProjectDescription;
+                    task.projecttype = project.ProjectType;
+                    task.projectstatus = project.ProjectStatus;
+                }
+            }
+
+            return taskData;
+        }
+
+
 
         public async Task<GroupTaskSet> InsertGroupTaskSet(GroupTaskSet item)
         {
@@ -121,12 +270,13 @@ namespace CMaaS.Task.DAL
                 }
 
                 // Query text with correct casing for TenantID
-                string queryText =
-                    "SELECT * FROM c " +
+                string strQuery =
+                    TaskContextDTOSelectQuery() +
                     "WHERE c.TenantID = @tenantId " +
-                    "AND ARRAY_CONTAINS(@projectIds, c.ProjectID)";
+                    "AND ARRAY_CONTAINS(@projectIds, c.ProjectID)" +
+                    TaskContextDTOGroupBy();
 
-                var query = new QueryDefinition(queryText)
+                var query = new QueryDefinition(strQuery)
                     .WithParameter("@tenantId", tenantId)
                     .WithParameter("@projectIds", projectList);
 
@@ -148,6 +298,8 @@ namespace CMaaS.Task.DAL
                     }
                 }
 
+                //add call to EnrichTaskDatawithProjectInfo which updates with project info here
+                results = await EnrichTaskDatawithProjectInfo(results, tenantId);
 
                 return results;
             }
@@ -175,104 +327,9 @@ namespace CMaaS.Task.DAL
         public async Task<List<TaskContextDTO>> GetGTContextDTO(string tenantid, string person)
         {
             string strQuery =
-                "SELECT " +
-                "    c.ProjectID, " +
-                "    c.TenantID, " +
-                "    c.id, " +
-                "    c.ExtProjectID, " +
-                "    g.GroupTaskID, " +
-                "    g.GroupTaskTitle, " +
-                "    g.GroupTaskDescription, " +
-                "    g.GroupTaskStatus, " +
-                "    MAX(d.LastGroupTaskDueDate) AS GroupTaskDueDate, " +
-                "    g.GroupTaskClosedDate, " +
-                "    g.AssociatedDocuments, " +
-                "    g.AssociatedLOBItems, " +
-                "    g.GroupTaskType, " +
-                "    g.GroupTaskStage, " +
-                "    g.AssignorStakeholderGroup, " +
-                "    a.AssigneeStakeholderGroup, " +
-                "    g.GroupTaskNotes, " +
-                "    g.FacilitiationComplete, " +
-                "    g.FacilitiationPreviouslyComplete, " +
-                "    g.CancellationSent, " +
-                "    g.ParentGroupTaskID, " +
-                "    g.CreatedBy, " +
-                "    g.CreatedDate, " +
-                "    g.LastModifiedBy, " +
-                "    g.LastModifiedDate, " +
-                "    s.IndividualTaskSetID, " +
-                "    s.ITSCreatedBy, " +
-                "    s.ITSCreatedDate, " +
-                "    i.IndividualTaskID, " +
-                "    i.IndividualTaskStatus, " +
-                "    i.IndividualTaskTitle, " +
-                "    i.IndividualTaskType, " +
-                "    i.IndividualTaskDescription, " +
-                "    i.IndividualTaskNotes, " +
-                "    i.Priority, " +
-                "    i.AssignedPerson, " +
-                "    i.AssociatedRole, " +
-                "    i.PreviouslySent, " +
-                "    i.IndividualTaskAssignedDate, " +
-                "    i.IndividualTaskDueDate, " +
-                "    i.IndividualTaskCancelledDate, " +
-                "    i.IndividualTaskApprovalDecision, " +
-                "    i.IndividualTaskCompletedDate, " +
-                "    i.ITCreatedBy, " +
-                "    i.ITCreatedDate " +
-                "FROM c " +
-                "JOIN g IN c.GroupTask " +
-                "JOIN s IN g.IndividualTaskSets " +
-                "JOIN i IN s.IndividualTask " +
-                "JOIN d IN g.GroupTaskDueDate " +
-                "JOIN a IN g.AssigneeStakeholderGroup " +
+                TaskContextDTOSelectQuery() +
                 "WHERE i.AssignedPerson = @person " +
-                "GROUP BY " +
-                "    c.ProjectID, " +
-                "    c.TenantID, " +
-                "    c.id, " +
-                "    c.ExtProjectID, " +
-                "    g.GroupTaskID, " +
-                "    g.GroupTaskTitle, " +
-                "    g.GroupTaskDescription, " +
-                "    g.GroupTaskStatus, " +
-                "    g.GroupTaskClosedDate, " +
-                "    g.AssociatedDocuments, " +
-                "    g.AssociatedLOBItems, " +
-                "    g.GroupTaskType, " +
-                "    g.GroupTaskStage, " +
-                "    g.AssignorStakeholderGroup, " +
-                "    a.AssigneeStakeholderGroup, " +
-                "    g.GroupTaskNotes, " +
-                "    g.FacilitiationComplete, " +
-                "    g.FacilitiationPreviouslyComplete, " +
-                "    g.CancellationSent, " +
-                "    g.ParentGroupTaskID, " +
-                "    g.CreatedBy, " +
-                "    g.CreatedDate, " +
-                "    g.LastModifiedBy, " +
-                "    g.LastModifiedDate, " +
-                "    s.IndividualTaskSetID, " +
-                "    s.ITSCreatedBy, " +
-                "    s.ITSCreatedDate, " +
-                "    i.IndividualTaskID, " +
-                "    i.IndividualTaskStatus, " +
-                "    i.IndividualTaskTitle, " +
-                "    i.IndividualTaskType, " +
-                "    i.IndividualTaskDescription, " +
-                "    i.IndividualTaskNotes, " +
-                "    i.Priority, " +
-                "    i.AssignedPerson, " +
-                "    i.AssociatedRole, " +
-                "    i.PreviouslySent, " +
-                "    i.IndividualTaskAssignedDate, " +
-                "    i.IndividualTaskDueDate, " +
-                "    i.IndividualTaskCancelledDate, " +
-                "    i.IndividualTaskApprovalDecision, " +
-                "    i.IndividualTaskCompletedDate, " +
-                "    i.ITCreatedBy, " +
-                "    i.ITCreatedDate ";
+                TaskContextDTOGroupBy();
 
             var query = new QueryDefinition(strQuery)
                 .WithParameter("@person", person);
@@ -295,29 +352,8 @@ namespace CMaaS.Task.DAL
                     }
                 }
 
-                // Enrich results with project info
-                List<string> projectIds = results
-                    .Where(r => !string.IsNullOrEmpty(r.projectid))
-                    .Select(r => r.projectid)
-                    .Distinct()
-                    .ToList();
-
-                //Call Project app DBUtil to return project data based on the project ids from the GTS list
-                var projectLookup = new Dictionary<string, Project>();
-                var projectDBUtil = new CMaaS.TaskProject.DAL.DBUtil();
-
-                projectLookup = await projectDBUtil.GetProjectDatabyProjectIDList(projectIds, tenantid);
-
-                foreach (var task in results)
-                {
-                    if (task.projectid != null && projectLookup.TryGetValue(task.projectid, out var project))
-                    {
-                        task.projectname = project.ProjectNames;
-                        task.projectdescription = project.projectdescription;
-                        task.projecttype = project.projecttype;
-                        task.projectstatus = project.projectstatus;
-                    }
-                }
+                //add call to EnrichTaskDatawithProjectInfo which updates with project info here
+                results = await EnrichTaskDatawithProjectInfo(results, tenantid);
 
                 return results;
             }

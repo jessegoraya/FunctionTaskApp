@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace CMaaS.TaskProject.Model
+namespace Taslow.Project.Model
 {
-    public class Project
+    public class TaskProject
     {
         //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
@@ -60,11 +60,11 @@ namespace CMaaS.TaskProject.Model
     public class AssociatedPeople
     {
         [JsonProperty(PropertyName = "AssociatedPersonID")]
-        public Guid grouptaskid { get; set; }
+        public Guid associatedpersonid { get; set; }
 
         //Name of person 
         [JsonProperty(PropertyName = "PersonName")]
-        public string grouptasktitle { get; set; }
+        public string personname { get; set; }
 
         //Other names associated with the person
         [JsonProperty(PropertyName = "PersonAliases")]
@@ -74,7 +74,12 @@ namespace CMaaS.TaskProject.Model
         [JsonProperty(PropertyName = "PersonEmail")]
         public string personemail { get; set; }
 
+        [JsonProperty(PropertyName = "Role")]
+        public string role { get; set; }
+
     }
+
+
 
 
 }

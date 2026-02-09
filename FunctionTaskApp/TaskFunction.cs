@@ -7,19 +7,38 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using CMaaS.Task.Model;
-using CMaaS.Task.DAL;
-using CMaaS.Task.Service;
-using CMaaS.TaskProject.DAL;
+using Taslow.Task.Model;
+using Taslow.Task.Service;
+using Taslow.Shared.Model;
 using System.Collections.Generic;
 using System.Linq;
+using Taslow.Task.DAL.Interface;
+using Taslow.Task.Client.Interface;
 
-namespace CMaaS.Task.Function
+namespace Taslow.Task.Function
 {
-    public static class FunctionTaskController
+
+    public class FunctionTaskController
     {
+        private readonly ITaskDBUtil _taskDb;
+        private readonly IProjectServiceClient _projSvcClient;
+
+        public FunctionTaskController(ITaskDBUtil taskDb, IProjectServiceClient projSvcClient)
+        {
+            _taskDb = taskDb;
+            _projSvcClient = projSvcClient;
+        }
+
+        [FunctionName("Ping")]
+        public IActionResult Ping(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ping")]
+              HttpRequest req)
+        {
+            return new OkObjectResult("pong");
+        }
+
         [FunctionName("AddGroupTaskSet")]
-        public static async Task<IActionResult> RunAddGroupTaskSetAsync(
+        public async Task<IActionResult> RunAddGroupTaskSetAsync(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = "grouptaskset")] HttpRequest req,
             ILogger log)
         {
@@ -34,8 +53,8 @@ namespace CMaaS.Task.Function
             }
 
             newGTS.id = Guid.NewGuid().ToString();
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            GroupTaskSet result = await dbRepo.InsertGroupTaskSet(newGTS);
+
+            GroupTaskSet result = await _taskDb.InsertGroupTaskSet(newGTS);
 
             if (result != null && !string.IsNullOrEmpty(result.id))
             {
@@ -49,7 +68,7 @@ namespace CMaaS.Task.Function
 
         //use this function to get a Group Task when you have the GTS Id (i.e. ID) and Tenant ID
         [FunctionName("GetGroupTaskSetById")]
-        public static async Task<IActionResult> RunGetGroupTaskSetByIdAsync(
+        public async Task<IActionResult> RunGetGroupTaskSetByIdAsync(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptaskset/{id}/{tenantid}")] HttpRequest req,
             string id,
             string tenantid,
@@ -57,8 +76,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"GetGroupTaskSetById function processed a request for id: {id}, tenantid: {tenantid}");
 
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            GroupTaskSet result = await dbRepo.GetGroupTaskSet(id, tenantid);
+            GroupTaskSet result = await _taskDb.GetGroupTaskSet(id, tenantid);
 
             if (result != null)
             {
@@ -72,7 +90,7 @@ namespace CMaaS.Task.Function
 
         //use this function to get a Group Task when you have the Case Id (i.e. Project) and Tenant ID
         [FunctionName("GetGroupTaskSetByProjectId")]
-        public static async Task<IActionResult> RunGetGroupTaskSetByProjectIdAsync(
+        public async Task<IActionResult> RunGetGroupTaskSetByProjectIdAsync(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetbyproject/{projectid}/{tenantid}")] HttpRequest req,
             string projectid,
             string tenantid,
@@ -80,8 +98,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"GetGroupTaskSetByCaseId function processed a request for id: {projectid}, tenantid: {tenantid}");
 
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            GroupTaskSet result = await dbRepo.GetGroupTaskSetByProjectId(projectid, tenantid);
+            GroupTaskSet result = await _taskDb.GetGroupTaskSetByProjectId(projectid, tenantid);
 
             if (result != null)
             {
@@ -94,7 +111,7 @@ namespace CMaaS.Task.Function
         }
 
         [FunctionName("UpdateGroupTaskSet")]
-        public static async Task<IActionResult> RunUpdateGroupTaskSetAsync(
+        public async Task<IActionResult> RunUpdateGroupTaskSetAsync(
             [HttpTrigger(AuthorizationLevel.Function, "put", Route = "grouptaskset/{id}/{tenantid}")] HttpRequest req,
             string id,
             string tenantid,
@@ -110,8 +127,7 @@ namespace CMaaS.Task.Function
                 return new BadRequestObjectResult("Invalid payload");
             }
 
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            bool result = await dbRepo.UpdateGroupTaskSet(id, tenantid, updatedGTS);
+            bool result = await _taskDb.UpdateGroupTaskSet(id, tenantid, updatedGTS);
 
             if (result != true)
             {
@@ -124,7 +140,7 @@ namespace CMaaS.Task.Function
         }
 
         [FunctionName("DeleteGroupTaskSet")]
-        public static async Task<IActionResult> RunDeleteGroupTaskSetAsync(
+        public async Task<IActionResult> RunDeleteGroupTaskSetAsync(
             [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "grouptaskset/{id}/{tenantid}")] HttpRequest req,
             string id,
             string tenantid,
@@ -132,8 +148,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"DeleteGroupTaskSet function processed a request for id: {id}, tenantid: {tenantid}");
 
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            bool deleted = await dbRepo.DeleteGroupTaskSet(id, tenantid);
+            bool deleted = await _taskDb.DeleteGroupTaskSet(id, tenantid);
 
             if (deleted)
             {
@@ -146,12 +161,12 @@ namespace CMaaS.Task.Function
         }
 
 
-       [FunctionName("AddGroupTaskToGTS")]
-       public static async Task<IActionResult> AddGroupTaskToGTS(
-       [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addgrouptasktogts/{id}/{tenantid}/")] HttpRequest req,
-       string id,
-       string tenantid,
-       ILogger log)
+        [FunctionName("AddGroupTaskToGTS")]
+        public async Task<IActionResult> AddGroupTaskToGTS(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addgrouptasktogts/{id}/{tenantid}/")] HttpRequest req,
+        string id,
+        string tenantid,
+        ILogger log)
         {
             log.LogInformation("Processing request to add a new GroupTask.");
 
@@ -173,8 +188,7 @@ namespace CMaaS.Task.Function
                 SvcUtil svc = new SvcUtil();
                 NewGT = svc.SetNewIDs(NewGT);
 
-                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-                bool success = await dbRepo.CreateGroupTaskAsync(id, tenantid, NewGT);
+                bool success = await _taskDb.CreateGroupTaskAsync(id, tenantid, NewGT);
                 if (success)
                 {
                     return new OkObjectResult($"GroupTask added to GroupTaskSet {id}.");
@@ -193,7 +207,7 @@ namespace CMaaS.Task.Function
         }
 
         [FunctionName("UpdateGroupTaskinGTS")]
-        public static async Task<IActionResult> UpdateGroupTaskinGTS(
+        public async Task<IActionResult> UpdateGroupTaskinGTS(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "updgrouptask/{id}/{tenantid}/")] HttpRequest req, string id, string tenantid,
        ILogger log)
         {
@@ -209,8 +223,7 @@ namespace CMaaS.Task.Function
 
                 }
 
-                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-                bool success = await dbRepo.UpdateGroupTaskAsync(id, tenantid, updGT);
+                bool success = await _taskDb.UpdateGroupTaskAsync(id, tenantid, updGT);
                 if (success)
                 {
                     return new OkObjectResult($"GroupTask added to GroupTaskSet {id}.");
@@ -228,7 +241,7 @@ namespace CMaaS.Task.Function
         }
 
         [FunctionName("AddIndividualTaskToGT")]
-        public static async Task<IActionResult> AddIndividualTaskToGT(
+        public async Task<IActionResult> AddIndividualTaskToGT(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addindtask/{id}/{tenantid}/{gtid}/")] HttpRequest req,
         string id,
         string tenantid,
@@ -255,8 +268,7 @@ namespace CMaaS.Task.Function
                 SvcUtil svc = new SvcUtil();
                 NewIT = svc.SetNewITIDs(NewIT);
 
-                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-                bool success = await dbRepo.CreateIndividualTaskAsync(id, tenantid, gtid, NewIT);
+                bool success = await _taskDb.CreateIndividualTaskAsync(id, tenantid, gtid, NewIT);
 
                 if (success)
                 {
@@ -276,7 +288,7 @@ namespace CMaaS.Task.Function
         }
 
         [FunctionName("UpdateIndividualTaskinGT")]
-        public static async Task<IActionResult> UpdateIndividualTaskinGT(
+        public async Task<IActionResult> UpdateIndividualTaskinGT(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "updindtask/{id}/{tenantid}/{gtid}/")] HttpRequest req, string id, string gtid, string tenantid,
         ILogger log)
         {
@@ -292,8 +304,7 @@ namespace CMaaS.Task.Function
 
                 }
 
-                CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-                bool success = await dbRepo.UpdateIndividualTaskAsync(id, tenantid, gtid, updIT);
+                bool success = await _taskDb.UpdateIndividualTaskAsync(id, tenantid, gtid, updIT);
                 if (success)
                 {
                     return new OkObjectResult($"IndividualTask added to GroupTask {gtid} with document {id}.");
@@ -312,7 +323,7 @@ namespace CMaaS.Task.Function
 
         //Get GTS Context DTO objects by Tenant and Person 
         [FunctionName("GetGTContextDTObyTenantandPerson")]
-        public static async Task<IActionResult> RunGetGroupTaskSetByTenantAsync(
+        public async Task<IActionResult> RunGetGroupTaskSetByTenantAsync(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "taskcontextdto/{tenantid}/{person}")] HttpRequest req,
             string tenantid,
             string person,
@@ -320,8 +331,7 @@ namespace CMaaS.Task.Function
         {
             log.LogInformation($"GetGTSDTOyTenantandPerson function processed a request for tenantid: {tenantid}");
 
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            List<TaskContextDTO> result = await dbRepo.GetGTContextDTO(tenantid, person);
+            List<TaskContextDTO> result = await _taskDb.GetGTContextDTO(tenantid, person);
 
             if (result != null)
             {
@@ -335,26 +345,23 @@ namespace CMaaS.Task.Function
 
         //Provide a manager name so that you can return on all tasks across projects where that user is a manager
         [FunctionName("GetTasksForManagedProjects")]
-        public static async Task<IActionResult> GetTasksForManagedProjects(
+        public async Task<IActionResult> GetTasksForManagedProjects(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "getmgrtaskcontextdto/{tenantid}/{manager}")] HttpRequest req,
         string tenantid,
-        string manager, 
+        string manager,
         ILogger log)
         {
             if (string.IsNullOrEmpty(manager))
                 return new BadRequestObjectResult("Manager email is required.");
 
-            CMaaS.Task.DAL.DBUtil dbRepo = new CMaaS.Task.DAL.DBUtil();
-            CMaaS.TaskProject.DAL.DBUtil projdbRepo = new CMaaS.TaskProject.DAL.DBUtil();
-
             // Step 1: Get all project IDs where user is a manager
-            var projectIds = await projdbRepo.GetProjectIdsForManagerAsync(manager, tenantid);
+            var projectIds = await _projSvcClient.GetProjectIdsForManagerAsync(tenantid, manager);
 
             if (projectIds == null || !projectIds.Any())
                 return new OkObjectResult(new List<TaskContextDTO>()); // no results
 
             // Step 2: Fetch all tasks for those project IDs
-            var tasks = await dbRepo.GetTasksByProjectIdsAsync(tenantid, projectIds);
+            var tasks = await _taskDb.GetTasksByProjectIdsAsync(tenantid, projectIds);
 
             return new OkObjectResult(tasks);
         }
