@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.Azure.Cosmos;
 using Taslow.Task.Model;
@@ -154,7 +154,22 @@ namespace Taslow.Task.DAL
             if (!projectIds.Any())
                 return taskData;
 
-            var projectLookup = await _projectServiceClient.GetProjectsAsync(projectIds, tenantId);
+            List<ProjectDTO> projects;
+            try
+            {
+                projects = await _projectServiceClient.GetProjectsAsync(projectIds, tenantId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    $"Project enrichment skipped due to project service error. Tenant: {tenantId}, " +
+                    $"Projects: {string.Join(",", projectIds)}. Error: {ex.Message}");
+                return taskData;
+            }
+
+            var projectLookup = projects
+                .Where(p => !string.IsNullOrEmpty(p.Id))
+                .ToDictionary(p => p.Id, p => p);
 
             foreach (var task in taskData)
             {
@@ -199,11 +214,18 @@ namespace Taslow.Task.DAL
 
         public async Task<GroupTaskSet> GetGroupTaskSetByProjectId(string projectid, string tenantid)
         {
+            var allForProject = await GetGroupTaskSetsByProjectId(projectid, tenantid);
+            return allForProject.FirstOrDefault(item => !item.isarchived) ?? allForProject.FirstOrDefault();
+        }
+
+        public async Task<List<GroupTaskSet>> GetGroupTaskSetsByProjectId(string projectid, string tenantid)
+        {
             var query = new QueryDefinition(
                 "SELECT * FROM c WHERE c.ProjectID = @projectid AND c.TenantID = @tenantid")
                 .WithParameter("@projectid", projectid)
                 .WithParameter("@tenantid", tenantid);
 
+            var items = new List<GroupTaskSet>();
             using (FeedIterator<GroupTaskSet> resultSet = container.GetItemQueryIterator<GroupTaskSet>(
                 query,
                 requestOptions: new QueryRequestOptions
@@ -214,15 +236,11 @@ namespace Taslow.Task.DAL
                 while (resultSet.HasMoreResults)
                 {
                     FeedResponse<GroupTaskSet> response = await resultSet.ReadNextAsync();
-                    GroupTaskSet item = response.FirstOrDefault();
-                    if (item != null)
-                    {
-                        return item;
-                    }
+                    items.AddRange(response);
                 }
             }
 
-            return null; // or throw an exception if you want to require a match
+            return items;
         }
 
         public async Task<TaskContextDTO> GetGroupTaskSetByTenantId(string tenantid, string status)
@@ -490,7 +508,7 @@ namespace Taslow.Task.DAL
             }
         }
 
-        public async Task<bool> UpdateIndividualTaskAsync(string id, string tenantid, string grouptaskid, IndividualTask updIT)
+        public async Task<bool> UpdateIndividualTaskAsync(string id, string tenantid, string grouptaskid, UpdateIndividualTaskDTO updIT)
         {
             try
             {
@@ -510,17 +528,55 @@ namespace Taslow.Task.DAL
                     throw new InvalidOperationException("Individual Task not found in document.");
                 }
 
-                // Step 3: Perform patch to replace the IndividualTask at the correct index
+                //Step 3: (Added 3/4/26) Check for updates to specific fields and compare to previously updated IT
+                var existingIT = groupTaskSet
+                .grouptask[indGT]
+                .individualtasksets[0]
+                .individualtask[indIT];
+
+                if (!string.IsNullOrEmpty(updIT.individualtasktitle))
+                {
+                    existingIT.individualtasktitle = updIT.individualtasktitle;
+                }
+
+                if (!string.IsNullOrEmpty(updIT.individualtaskdescription))
+                {
+                    existingIT.individualtaskdescription = updIT.individualtaskdescription;
+                }
+
+                if (!string.IsNullOrEmpty(updIT.assignedperson))
+                {
+                    existingIT.assignedperson = updIT.assignedperson;
+                }
+
+                if (!string.IsNullOrEmpty(updIT.status))
+                {
+                    existingIT.individualtaskstatus = updIT.status;
+                }
+
+                if (updIT.individualtaskduedate.HasValue)
+                {
+                    existingIT.individualtaskduedate = updIT.individualtaskduedate.Value;
+                }
+
+
+                // Step 4: Perform patch to replace the IndividualTask at the correct index (Updated 3/4/26)
                 var patchOps = new List<PatchOperation>
                 {
-                    PatchOperation.Replace($"/GroupTask/{indGT}/IndividualTaskSets/0/IndividualTask/{indIT}", updIT)
+                    PatchOperation.Replace($"/GroupTask/{indGT}/IndividualTaskSets/0/IndividualTask/{indIT}", existingIT)
                 };
 
-                await container.PatchItemAsync<GroupTaskSet>(
-                    id: id,
-                    partitionKey: new PartitionKey(tenantid),
-                    patchOperations: patchOps
+                var patchResponse = await container.PatchItemAsync<GroupTaskSet>(
+                id,
+                new PartitionKey(tenantid),
+                patchOps
                 );
+
+                //await container.PatchItemAsync<GroupTaskSet>(
+                //    id: id,
+                //    partitionKey: new PartitionKey(tenantid),
+                //    patchOperations: patchOps
+                //);
 
                 return response.StatusCode == System.Net.HttpStatusCode.OK;
             }
@@ -532,6 +588,199 @@ namespace Taslow.Task.DAL
 
         }
 
+        public async Task<bool> MoveIndividualTaskAsync(string tenantid, MoveIndividualTaskDTO moveIT)
+        {
+            if (moveIT == null)
+            {
+                throw new ArgumentException("Move request payload is required.");
+            }
 
+            if (string.IsNullOrWhiteSpace(tenantid) ||
+                string.IsNullOrWhiteSpace(moveIT.individualtaskid) ||
+                string.IsNullOrWhiteSpace(moveIT.sourceprojectid) ||
+                string.IsNullOrWhiteSpace(moveIT.targetprojectid))
+            {
+                throw new ArgumentException("tenantid, individualtaskid, sourceprojectid, and targetprojectid are required.");
+            }
+
+            try
+            {
+                var sourceGts = await GetGroupTaskSetByProjectId(moveIT.sourceprojectid, tenantid);
+                if (sourceGts == null)
+                {
+                    throw new InvalidOperationException("Source GroupTaskSet not found for sourceprojectid.");
+                }
+
+                var targetGts = await GetGroupTaskSetByProjectId(moveIT.targetprojectid, tenantid);
+                if (targetGts == null)
+                {
+                    throw new InvalidOperationException("Target GroupTaskSet not found for targetprojectid.");
+                }
+
+                int sourceGtIndex = -1;
+                int sourceItsIndex = -1;
+                int sourceItIndex = -1;
+
+                if (!string.IsNullOrWhiteSpace(moveIT.sourcegrouptaskid))
+                {
+                    sourceGtIndex = sourceGts.grouptask?.FindIndex(gt => gt.grouptaskid == moveIT.sourcegrouptaskid) ?? -1;
+                }
+
+                if (sourceGtIndex >= 0)
+                {
+                    var sourceSets = sourceGts.grouptask[sourceGtIndex].individualtasksets ?? new List<IndividualTaskSet>();
+
+                    if (!string.IsNullOrWhiteSpace(moveIT.sourceindividualtasksetid))
+                    {
+                        sourceItsIndex = sourceSets.FindIndex(its => its.individualtasksetid == moveIT.sourceindividualtasksetid);
+                    }
+
+                    if (sourceItsIndex >= 0)
+                    {
+                        sourceItIndex = sourceSets[sourceItsIndex].individualtask?
+                            .FindIndex(it => it.individualtaskid == moveIT.individualtaskid) ?? -1;
+                    }
+                    else
+                    {
+                        for (int i = 0; i < sourceSets.Count; i++)
+                        {
+                            var idx = sourceSets[i].individualtask?
+                                .FindIndex(it => it.individualtaskid == moveIT.individualtaskid) ?? -1;
+                            if (idx >= 0)
+                            {
+                                sourceItsIndex = i;
+                                sourceItIndex = idx;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (sourceGtIndex < 0 || sourceItsIndex < 0 || sourceItIndex < 0)
+                {
+                    var allSourceGts = sourceGts.grouptask ?? new List<GroupTask>();
+                    for (int g = 0; g < allSourceGts.Count; g++)
+                    {
+                        var sets = allSourceGts[g].individualtasksets ?? new List<IndividualTaskSet>();
+                        for (int s = 0; s < sets.Count; s++)
+                        {
+                            var idx = sets[s].individualtask?
+                                .FindIndex(it => it.individualtaskid == moveIT.individualtaskid) ?? -1;
+                            if (idx >= 0)
+                            {
+                                sourceGtIndex = g;
+                                sourceItsIndex = s;
+                                sourceItIndex = idx;
+                                moveIT.sourcegrouptaskid = allSourceGts[g].grouptaskid;
+                                moveIT.sourceindividualtasksetid = sets[s].individualtasksetid;
+                                break;
+                            }
+                        }
+
+                        if (sourceItIndex >= 0)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                if (sourceGtIndex < 0 || sourceItsIndex < 0 || sourceItIndex < 0)
+                {
+                    throw new InvalidOperationException("IndividualTask not found in source GroupTaskSet hierarchy.");
+                }
+
+                IndividualTask taskToMove = sourceGts.grouptask[sourceGtIndex]
+                    .individualtasksets[sourceItsIndex]
+                    .individualtask[sourceItIndex];
+
+                var targetGroupTasks = targetGts.grouptask ?? new List<GroupTask>();
+
+                string targetGtId = moveIT.targetgrouptaskid;
+                if (string.IsNullOrWhiteSpace(targetGtId))
+                {
+                    targetGtId = moveIT.sourcegrouptaskid;
+                }
+
+                int targetGtIndex = -1;
+                if (!string.IsNullOrWhiteSpace(targetGtId))
+                {
+                    targetGtIndex = targetGroupTasks.FindIndex(gt => gt.grouptaskid == targetGtId);
+                }
+
+                if (targetGtIndex < 0 && targetGroupTasks.Count == 1)
+                {
+                    targetGtIndex = 0;
+                }
+
+                if (targetGtIndex < 0)
+                {
+                    throw new InvalidOperationException("Target GroupTask not found.");
+                }
+
+                int targetItsIndex = -1;
+                var targetSets = targetGroupTasks[targetGtIndex].individualtasksets ?? new List<IndividualTaskSet>();
+
+                if (!string.IsNullOrWhiteSpace(moveIT.targetindividualtasksetid))
+                {
+                    targetItsIndex = targetSets.FindIndex(its => its.individualtasksetid == moveIT.targetindividualtasksetid);
+                }
+
+                if (targetItsIndex < 0 && targetSets.Count > 0)
+                {
+                    targetItsIndex = 0;
+                }
+
+                if (targetItsIndex < 0)
+                {
+                    throw new InvalidOperationException("Target IndividualTaskSet not found.");
+                }
+
+                string sourceRemovePath = $"/GroupTask/{sourceGtIndex}/IndividualTaskSets/{sourceItsIndex}/IndividualTask/{sourceItIndex}";
+                string targetAddPath = $"/GroupTask/{targetGtIndex}/IndividualTaskSets/{targetItsIndex}/IndividualTask/-";
+
+                if (string.Equals(sourceGts.id, targetGts.id, StringComparison.Ordinal) &&
+                    sourceGtIndex == targetGtIndex &&
+                    sourceItsIndex == targetItsIndex)
+                {
+                    return true;
+                }
+
+                if (string.Equals(sourceGts.id, targetGts.id, StringComparison.Ordinal))
+                {
+                    var patchOps = new List<PatchOperation>
+                    {
+                        PatchOperation.Remove(sourceRemovePath),
+                        PatchOperation.Add(targetAddPath, taskToMove)
+                    };
+
+                    var patchResponse = await container.PatchItemAsync<GroupTaskSet>(
+                        sourceGts.id,
+                        new PartitionKey(tenantid),
+                        patchOps);
+
+                    return patchResponse.StatusCode == System.Net.HttpStatusCode.OK;
+                }
+
+                var batch = container
+                    .CreateTransactionalBatch(new PartitionKey(tenantid))
+                    .PatchItem(sourceGts.id, new List<PatchOperation>
+                    {
+                        PatchOperation.Remove(sourceRemovePath)
+                    })
+                    .PatchItem(targetGts.id, new List<PatchOperation>
+                    {
+                        PatchOperation.Add(targetAddPath, taskToMove)
+                    });
+
+                var batchResponse = await batch.ExecuteAsync();
+                return batchResponse.IsSuccessStatusCode;
+            }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Error moving Individual Task: {ex.StatusCode} - {ex.Message}");
+                return false;
+            }
+        }
     }
 }
+

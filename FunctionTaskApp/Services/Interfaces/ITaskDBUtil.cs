@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Taslow.Task.Model;
 using Taslow.Shared.Model;
@@ -11,6 +11,7 @@ public interface ITaskDBUtil
 
     Task<GroupTaskSet> GetGroupTaskSet(string id, string tenantid);
     Task<GroupTaskSet> GetGroupTaskSetByProjectId(string projectid, string tenantid);
+    Task<List<GroupTaskSet>> GetGroupTaskSetsByProjectId(string projectid, string tenantid);
 
     Task<TaskContextDTO> GetGroupTaskSetByTenantId(string tenantid, string status);
 
@@ -30,6 +31,10 @@ public interface ITaskDBUtil
         string id, string tenantid, string gtid, IndividualTask newIndividualTask);
 
     Task<bool> UpdateIndividualTaskAsync(
-        string id, string tenantid, string grouptaskid, IndividualTask updIT);
+        string id, string tenantid, string grouptaskid, UpdateIndividualTaskDTO updIT);
+
+    Task<bool> MoveIndividualTaskAsync(
+        string tenantid, MoveIndividualTaskDTO moveIT);
 }
+
 

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
@@ -7,11 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- REQUIRED for in-process Azure Functions -->
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
-	<PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
-    <!-- Cosmos DB -->
+    <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.34.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,4 +28,3 @@
   </ItemGroup>
 
 </Project>
-

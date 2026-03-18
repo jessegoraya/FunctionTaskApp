@@ -7,6 +7,7 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Taslow.Task.Model;
 using Taslow.Task.Service;
 using Taslow.Shared.Model;
@@ -108,6 +109,22 @@ namespace Taslow.Task.Function
             {
                 return new NotFoundResult();
             }
+        }
+
+        [FunctionName("GetGroupTaskSetsByProjectId")]
+        public async Task<IActionResult> RunGetGroupTaskSetsByProjectIdAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetsbyproject/{projectid}/{tenantid}")] HttpRequest req,
+            string projectid,
+            string tenantid,
+            ILogger log)
+        {
+            log.LogInformation(
+                "GetGroupTaskSetsByProjectId function processed a request for projectid: {projectid}, tenantid: {tenantid}",
+                projectid,
+                tenantid);
+
+            var result = await _taskDb.GetGroupTaskSetsByProjectId(projectid, tenantid);
+            return new OkObjectResult(result ?? new List<GroupTaskSet>());
         }
 
         [FunctionName("UpdateGroupTaskSet")]
@@ -296,7 +313,7 @@ namespace Taslow.Task.Function
             {
                 // Read and deserialize body
                 string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                IndividualTask updIT = JsonConvert.DeserializeObject<IndividualTask>(requestBody);
+                UpdateIndividualTaskDTO updIT = JsonConvert.DeserializeObject<UpdateIndividualTaskDTO>(requestBody);
 
                 if (updIT == null)
                 {
@@ -321,6 +338,81 @@ namespace Taslow.Task.Function
             }
         }
 
+
+        [FunctionName("MoveIndividualTask")]
+        public async Task<IActionResult> MoveIndividualTask(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "moveindtask/{tenantid}/")] HttpRequest req,
+        string tenantid,
+        ILogger log)
+        {
+            try
+            {
+                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                JObject payload = JsonConvert.DeserializeObject<JObject>(requestBody);
+
+                if (payload == null)
+                {
+                    return new BadRequestObjectResult("Error converting json");
+                }
+
+                string ReadToken(params string[] paths)
+                {
+                    foreach (var path in paths)
+                    {
+                        var token = payload.SelectToken(path);
+                        if (token != null && token.Type != JTokenType.Null)
+                        {
+                            var value = token.ToString();
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                return value;
+                            }
+                        }
+                    }
+                    return null;
+                }
+
+                var moveIT = new MoveIndividualTaskDTO
+                {
+                    individualtaskid = ReadToken("individualtaskid", "individualTaskId", "IndividualTaskID", "itid", "taskId"),
+                    sourceprojectid = ReadToken("sourceprojectid", "sourceProjectId", "source.projectid", "source.projectId", "oldProjectId", "previousProjectId", "projectId"),
+                    sourcegrouptaskid = ReadToken("sourcegrouptaskid", "sourceGroupTaskId", "source.grouptaskid", "source.groupTaskId", "gtid", "groupTaskId"),
+                    sourceindividualtasksetid = ReadToken("sourceindividualtasksetid", "sourceIndividualTaskSetId", "source.individualtasksetid", "source.individualTaskSetId", "itsid", "individualTaskSetId"),
+                    targetprojectid = ReadToken("targetprojectid", "targetProjectId", "target.projectid", "target.projectId", "newProjectId", "projectid"),
+                    targetgrouptaskid = ReadToken("targetgrouptaskid", "targetGroupTaskId", "target.grouptaskid", "target.groupTaskId", "newGroupTaskId"),
+                    targetindividualtasksetid = ReadToken("targetindividualtasksetid", "targetIndividualTaskSetId", "target.individualtasksetid", "target.individualTaskSetId", "newIndividualTaskSetId"),
+                    updatedby = ReadToken("updatedby", "updatedBy", "lastModifiedBy")
+                };
+
+                if (string.IsNullOrWhiteSpace(moveIT.targetgrouptaskid))
+                {
+                    moveIT.targetgrouptaskid = moveIT.sourcegrouptaskid;
+                }
+
+                bool success = await _taskDb.MoveIndividualTaskAsync(tenantid, moveIT);
+                if (success)
+                {
+                    return new OkObjectResult("IndividualTask moved successfully.");
+                }
+
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
+            catch (ArgumentException ex)
+            {
+                log.LogError(ex, "Invalid move request payload for tenant {tenantid}", tenantid);
+                return new BadRequestObjectResult(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                log.LogError(ex, "Unable to move IndividualTask for tenant {tenantid}", tenantid);
+                return new NotFoundObjectResult(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Failed to move IndividualTask for tenant {tenantid}", tenantid);
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
+        }
         //Get GTS Context DTO objects by Tenant and Person 
         [FunctionName("GetGTContextDTObyTenantandPerson")]
         public async Task<IActionResult> RunGetGroupTaskSetByTenantAsync(
@@ -369,3 +461,7 @@ namespace Taslow.Task.Function
     }
 
 }
+
+
+
+

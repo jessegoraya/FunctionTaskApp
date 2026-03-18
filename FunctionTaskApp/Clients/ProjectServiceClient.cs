@@ -18,30 +18,44 @@ namespace Taslow.Task.Client
         private readonly HttpClient _httpClient;
         private readonly ILogger<ProjectServiceClient> _log;
 
-        public ProjectServiceClient(HttpClient httpClient)
+        public ProjectServiceClient(HttpClient httpClient, ILogger<ProjectServiceClient> log)
         {
             _httpClient = httpClient;
+            _log = log;
         }
 
-        public async Task<Dictionary<string, ProjectDTO>>
+        public async Task<List<ProjectDTO>>
             GetProjectsAsync(List<string> projectIds, string tenantId)
         {
-            var request = new ProjectBatchRequest
+            try
             {
-                TenantId = tenantId,
-                ProjectIds = projectIds
-            };
+                var request = new ProjectBatchRequest
+                {
+                    TenantId = tenantId,
+                    ProjectIds = projectIds
+                };
 
-            var response = await _httpClient.PostAsJsonAsync(
-                "/api/projects/batch",
-                request);
+                var response = await _httpClient.PostAsJsonAsync(
+                    "/api/projects/batch",
+                    request);
 
-            response.EnsureSuccessStatusCode();
+                response.EnsureSuccessStatusCode();
 
-            var result = await response.Content
-                .ReadFromJsonAsync<ProjectBatchResponse>();
+                var result = await response.Content
+                    .ReadFromJsonAsync<ProjectBatchResponse>();
 
-            return result?.Projects ?? new();
+                return result?.Projects ?? new();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(
+                    ex,
+                    "Error retrieving project batch. TenantId={TenantId}, ProjectCount={ProjectCount}",
+                    tenantId,
+                    projectIds?.Count ?? 0);
+
+                return new List<ProjectDTO>();
+            }
         }
 
         public async Task<List<string>> GetProjectIdsForManagerAsync(

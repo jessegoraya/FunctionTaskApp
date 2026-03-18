@@ -10,6 +10,7 @@
 		<!-- Azure Functions SDK -->
 		<PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
 		<PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.6.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
 		<!-- Cosmos DB SDK -->
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.34.0" />
 	</ItemGroup>

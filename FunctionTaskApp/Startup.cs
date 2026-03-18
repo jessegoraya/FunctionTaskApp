@@ -16,18 +16,17 @@ namespace FunctionTaskApp
         public override void Configure(IFunctionsHostBuilder builder)
         {
             // Project Service Client (HTTP)
-            builder.Services.AddSingleton<IProjectServiceClient>(sp =>
+            builder.Services.AddHttpClient<IProjectServiceClient, ProjectServiceClient>(client =>
             {
                 var baseUrl = Environment.GetEnvironmentVariable("ProjectServiceBaseUrl");
 
-                if (string.IsNullOrEmpty(baseUrl))
-                    throw new InvalidOperationException("ProjectServiceBaseUrl is not configured.");
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                {
+                    throw new InvalidOperationException(
+                        "ProjectServiceBaseUrl is not configured.");
+                }
 
-                return new ProjectServiceClient(
-                    new HttpClient
-                    {
-                        BaseAddress = new Uri(baseUrl)
-                    });
+                client.BaseAddress = new Uri(baseUrl);
             });
 
             // Task DB Util

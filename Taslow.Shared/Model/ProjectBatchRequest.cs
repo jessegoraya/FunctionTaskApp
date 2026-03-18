@@ -9,7 +9,10 @@ namespace Taslow.Shared.Model
 {
     public class ProjectBatchRequest
     {
+        [JsonProperty("tenantId")]
         public string TenantId { get; set; }
+
+        [JsonProperty("projectIds")]
         public List<string> ProjectIds { get; set; } = new();
     }
 }

@@ -16,9 +16,18 @@ namespace Taslow.Task.Model
         [JsonProperty(PropertyName = "ProjectID")]
         public string caseid { get; set; }
 
+        [JsonProperty(PropertyName = "ProjectScopeArea")]
+        public string projectscopearea { get; set; }
+
+        [JsonProperty(PropertyName = "ProjectScopeAreaEmbeddings")]
+        public List<float> projectscopeareaembeddings { get; set; } = new();
+
         //associated tenant using 
         [JsonProperty(PropertyName = "TenantID")]
         public string tenantid { get; set; }
+
+        [JsonProperty(PropertyName = "IsArchived")]
+        public bool isarchived { get; set; }
 
         //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]

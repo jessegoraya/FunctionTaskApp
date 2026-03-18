@@ -1,60 +1,75 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 namespace Taslow.Project.Model
 {
     public class TaskProject
     {
-        //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
         public string Id { get; set; }
 
-        //External Project ID outside of Taslow from a CRM system, Case Management system or something else from the customer, if projects aren't managed in Taslow.
         [JsonProperty(PropertyName = "ExtProjectID")]
         public string ExtProjectID { get; set; }
 
-        [JsonProperty(PropertyName = "projectNames")]
+        [JsonProperty(PropertyName = "ProjectName")]
         public string ProjectNames { get; set; }
 
-        [JsonProperty(PropertyName = "projectDescription")]
+        [JsonProperty(PropertyName = "ProjectDescription")]
         public string projectdescription { get; set; }
 
-        //set project type as one of 4 types: Delivery, Maintenance, Administrative, Capture
-        [JsonProperty(PropertyName = "projectType")]
+        [JsonProperty(PropertyName = "ProjectType")]
         public string projecttype { get; set; }
 
-        //set 
-        [JsonProperty(PropertyName = "projectStatus")]
+        [JsonProperty(PropertyName = "ProjectStatus")]
         public string projectstatus { get; set; }
 
-        //set project status as Open or Archivied
         [JsonProperty(PropertyName = "DescVector")]
-        public List<float> descvector { get; set; }
+        public List<float> descvector { get; set; } = new();
 
-        //Contains all of the Asspciated People for a specific project.  They see tasks associated to them in the My Tasks or Individual Tasks view of the app
         [JsonProperty(PropertyName = "AssociatedPeople")]
-        public List<AssociatedPeople> associatedpeople { get; set; }
+        public List<AssociatedPeople> associatedpeople { get; set; } = new();
 
-        //Contains all of the Asspciated Managers for a specific project.  They get access to all tasks on the proejct in the Project Tasks view of the app
         [JsonProperty(PropertyName = "AssociatedManagers")]
-        public List<AssociatedPeople> associatedmanagers { get; set; }
+        public List<AssociatedPeople> associatedmanagers { get; set; } = new();
 
-        //Date the project was created
+        [JsonProperty(PropertyName = "ProjectScopes")]
+        public List<ProjectScope> projectscopes { get; set; } = new();
+
         [JsonProperty(PropertyName = "DateCreated")]
         public DateTime datecreated { get; set; }
 
-        //Date the project was closed
         [JsonProperty(PropertyName = "DateClosed")]
         public DateTime dateclosed { get; set; }
 
-        //associated tenant with the project
-        [JsonProperty(PropertyName = "TenantID")]
-        //CosmosDB stores tenant id as "tenantID in Partiion Key settings and JSON for items
+        [JsonProperty(PropertyName = "LastModifiedDate")]
+        public DateTime lastmodifieddate { get; set; }
+
+        [JsonProperty(PropertyName = "tenantID")]
         public string tenantid { get; set; }
+    }
+
+    public class ProjectScope
+    {
+
+        [JsonProperty(PropertyName = "ScopeID")]
+        public string scopeid { get; set; }
+
+        [JsonProperty(PropertyName = "ProjectScopeAreaTitle")]
+        public string projectscopeareatitle { get; set; }
+
+        [JsonProperty(PropertyName = "ProjectScopeArea")]
+        public string projectscopearea { get; set; }
+
+        [JsonProperty(PropertyName = "ProjectScopeAreaEmbeddings")]
+        public List<float> projectscopeareaembeddings { get; set; } = new();
+
+        //ScopeID is just the "id" from Task 
+        [JsonProperty(PropertyName = "GroupTaskSetID")]
+        public string grouptasksetid { get; set; }
+
+        [JsonProperty(PropertyName = "IsArchived")]
+        public bool isarchived { get; set; }
     }
 
     public class AssociatedPeople
@@ -62,24 +77,16 @@ namespace Taslow.Project.Model
         [JsonProperty(PropertyName = "AssociatedPersonID")]
         public Guid associatedpersonid { get; set; }
 
-        //Name of person 
         [JsonProperty(PropertyName = "PersonName")]
         public string personname { get; set; }
 
-        //Other names associated with the person
         [JsonProperty(PropertyName = "PersonAliases")]
         public string personaliases { get; set; }
 
-        //email for the person
         [JsonProperty(PropertyName = "PersonEmail")]
         public string personemail { get; set; }
 
         [JsonProperty(PropertyName = "Role")]
         public string role { get; set; }
-
     }
-
-
-
-
 }
