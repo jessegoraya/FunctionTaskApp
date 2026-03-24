@@ -164,6 +164,7 @@ namespace Taslow.Project.DAL
                 .Select(scope => new ProjectScopeDTO
                 {
                     ScopeId = scope.scopeid,
+                    ProjectScopeAreaTitle = scope.projectscopeareatitle,
                     ProjectScopeArea = scope.projectscopearea,
                     ProjectScopeAreaEmbeddings = scope.projectscopeareaembeddings ?? new List<float>()
                 })
@@ -189,6 +190,7 @@ namespace Taslow.Project.DAL
             return new ProjectScopeSyncItem
             {
                 ScopeId = scope.scopeid,
+                ProjectScopeAreaTitle = scope.projectscopeareatitle,
                 ProjectScopeArea = scope.projectscopearea,
                 ProjectScopeAreaEmbeddings = scope.projectscopeareaembeddings ?? new List<float>(),
                 GroupTaskSetId = scope.grouptasksetid
@@ -568,6 +570,7 @@ namespace Taslow.Project.DAL
                 .Select(scope => new ProjectScopePatchItem
                 {
                     ScopeId = scope.ScopeId?.Trim(),
+                    ProjectScopeAreaTitle = scope.ProjectScopeAreaTitle?.Trim(),
                     ProjectScopeArea = scope.ProjectScopeArea?.Trim(),
                     ProjectScopeAreaEmbeddings = scope.ProjectScopeAreaEmbeddings ?? new List<float>()
                 })
@@ -625,6 +628,7 @@ namespace Taslow.Project.DAL
                     targetScope = new ProjectScope
                     {
                         scopeid = Guid.NewGuid().ToString(),
+                        projectscopeareatitle = incoming.ProjectScopeAreaTitle,
                         projectscopearea = incoming.ProjectScopeArea,
                         projectscopeareaembeddings = incoming.ProjectScopeAreaEmbeddings,
                         grouptasksetid = null,
@@ -640,16 +644,21 @@ namespace Taslow.Project.DAL
                         targetScope.projectscopearea,
                         incoming.ProjectScopeArea,
                         StringComparison.Ordinal);
+                    var titleChanged = !string.Equals(
+                        targetScope.projectscopeareatitle,
+                        incoming.ProjectScopeAreaTitle,
+                        StringComparison.Ordinal);
 
                     var embeddingsChanged = !SequenceEquals(
                         targetScope.projectscopeareaembeddings,
                         incoming.ProjectScopeAreaEmbeddings);
 
+                    targetScope.projectscopeareatitle = incoming.ProjectScopeAreaTitle;
                     targetScope.projectscopearea = incoming.ProjectScopeArea;
                     targetScope.projectscopeareaembeddings = incoming.ProjectScopeAreaEmbeddings;
                     targetScope.isarchived = false;
 
-                    if (areaChanged || embeddingsChanged)
+                    if (areaChanged || titleChanged || embeddingsChanged)
                     {
                         payload.Updated.Add(MapToSyncItem(targetScope));
                     }
@@ -676,6 +685,78 @@ namespace Taslow.Project.DAL
             {
                 Project = MapToDetailDto(project),
                 ScopeSync = payload
+            };
+        }
+
+        public async Task<ProjectScopeGtsLinkResultDTO> LinkScopeGroupTaskSetsAsync(
+            string tenantId,
+            string projectId,
+            ProjectScopeGtsLinkRequest request)
+        {
+            if (request == null || request.Mappings == null || !request.Mappings.Any())
+            {
+                throw new ArgumentException("At least one scope-to-GTS mapping is required.");
+            }
+
+            var project = await ReadProjectAsync(tenantId, projectId);
+            project.projectscopes ??= new List<ProjectScope>();
+
+            var linkedCount = 0;
+            var noOpCount = 0;
+            var conflictMessages = new List<string>();
+
+            foreach (var mapping in request.Mappings)
+            {
+                var scopeId = mapping?.ScopeId?.Trim();
+                var groupTaskSetId = mapping?.GroupTaskSetId?.Trim();
+                if (string.IsNullOrWhiteSpace(scopeId) || string.IsNullOrWhiteSpace(groupTaskSetId))
+                {
+                    throw new InvalidOperationException("Each mapping requires scopeId and groupTaskSetId.");
+                }
+
+                var scope = project.projectscopes.FirstOrDefault(s =>
+                    string.Equals(s.scopeid, scopeId, StringComparison.OrdinalIgnoreCase));
+                if (scope == null)
+                {
+                    throw new InvalidOperationException($"ScopeId not found on project: {scopeId}");
+                }
+
+                var existingGtsId = scope.grouptasksetid?.Trim();
+                if (string.IsNullOrWhiteSpace(existingGtsId))
+                {
+                    scope.grouptasksetid = groupTaskSetId;
+                    linkedCount++;
+                    continue;
+                }
+
+                if (string.Equals(existingGtsId, groupTaskSetId, StringComparison.OrdinalIgnoreCase))
+                {
+                    noOpCount++;
+                    continue;
+                }
+
+                conflictMessages.Add(
+                    $"ScopeId {scopeId} already mapped to GroupTaskSetID {existingGtsId}; incoming value {groupTaskSetId} is conflicting.");
+            }
+
+            if (conflictMessages.Any())
+            {
+                throw new InvalidOperationException($"CONFLICT: {string.Join(" | ", conflictMessages)}");
+            }
+
+            if (linkedCount > 0)
+            {
+                project.lastmodifieddate = DateTime.UtcNow;
+                var partitionKey = ResolveTenantPartitionKey(project, tenantId);
+                project.tenantid = partitionKey;
+                await _container.ReplaceItemAsync(project, project.Id, new PartitionKey(partitionKey));
+            }
+
+            return new ProjectScopeGtsLinkResultDTO
+            {
+                LinkedCount = linkedCount,
+                NoOpCount = noOpCount,
+                Project = MapToDetailDto(project)
             };
         }
     }

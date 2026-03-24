@@ -37,5 +37,10 @@ namespace Taslow.Project.DAL.Interface
             string tenantId,
             string projectId,
             ProjectScopePatchRequest request);
+
+        Task<ProjectScopeGtsLinkResultDTO> LinkScopeGroupTaskSetsAsync(
+            string tenantId,
+            string projectId,
+            ProjectScopeGtsLinkRequest request);
     }
 }

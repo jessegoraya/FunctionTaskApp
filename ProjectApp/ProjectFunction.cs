@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -21,13 +22,16 @@ namespace Taslow.Project.Function
     {
         private readonly IProjectDBUtil _projectDb;
         private readonly IProjectScopeSyncPublisher _scopeSyncPublisher;
+        private readonly IConfiguration _configuration;
 
         public ProjectTaskController(
             IProjectDBUtil projectDb,
-            IProjectScopeSyncPublisher scopeSyncPublisher)
+            IProjectScopeSyncPublisher scopeSyncPublisher,
+            IConfiguration configuration)
         {
             _projectDb = projectDb;
             _scopeSyncPublisher = scopeSyncPublisher;
+            _configuration = configuration;
         }
 
         [FunctionName("CreateProject")]
@@ -250,6 +254,39 @@ namespace Taslow.Project.Function
             }
         }
 
+        [FunctionName("LinkProjectScopeGroupTaskSets")]
+        public async Task<IActionResult> LinkProjectScopeGroupTaskSetsAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "projects/{tenantId}/{projectId}/scopes/link-gts")]
+            HttpRequest req,
+            string tenantId,
+            string projectId,
+            ILogger log)
+        {
+            var authFailure = EnsureScopeSyncAuthorization(req);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            var linkRequest = ParseScopeGtsLinkRequest(requestBody);
+
+            try
+            {
+                var result = await _projectDb.LinkScopeGroupTaskSetsAsync(tenantId, projectId, linkRequest);
+                return new OkObjectResult(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith("CONFLICT:", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ConflictObjectResult(ex.Message.Substring("CONFLICT:".Length).Trim());
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Scope-to-GTS link callback failed for project {ProjectId}", projectId);
+                return new BadRequestObjectResult(ex.Message);
+            }
+        }
+
         [FunctionName("GetActiveProjectsByTenant")]
         public async Task<IActionResult> GetActiveProjectsByTenant(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "projects/active/{tenantId}")]
@@ -355,6 +392,25 @@ namespace Taslow.Project.Function
                 {
                     StatusCode = StatusCodes.Status403Forbidden
                 };
+            }
+
+            return null;
+        }
+
+        private IActionResult EnsureScopeSyncAuthorization(HttpRequest req)
+        {
+            var expectedSecret = _configuration["ScopeSyncCallbackSecret"];
+            if (string.IsNullOrWhiteSpace(expectedSecret))
+            {
+                return null;
+            }
+
+            var providedSecret = req.Headers["x-scope-sync-secret"].FirstOrDefault()
+                                 ?? req.Query["scopeSyncSecret"].ToString();
+
+            if (!string.Equals(expectedSecret, providedSecret, StringComparison.Ordinal))
+            {
+                return new UnauthorizedObjectResult("Invalid scope sync callback secret.");
             }
 
             return null;
@@ -517,6 +573,7 @@ namespace Taslow.Project.Function
                     {
                         scopes.Add(new ProjectScopePatchItem
                         {
+                            ProjectScopeAreaTitle = null,
                             ProjectScopeArea = scopeEntry.ToString().Trim(),
                             ProjectScopeAreaEmbeddings = new List<float>()
                         });
@@ -532,6 +589,12 @@ namespace Taslow.Project.Function
                     scopes.Add(new ProjectScopePatchItem
                     {
                         ScopeId = ReadString(scopeObject, "scopeId", "ScopeID", "scopeid"),
+                        ProjectScopeAreaTitle = ReadString(
+                            scopeObject,
+                            "projectScopeAreaTitle",
+                            "ProjectScopeAreaTitle",
+                            "scopeAreaTitle",
+                            "title"),
                         ProjectScopeArea = ReadString(scopeObject, "projectScopeArea", "ProjectScopeArea", "scopeArea", "name"),
                         ProjectScopeAreaEmbeddings = ReadEmbeddingArray(
                             scopeObject,
@@ -542,6 +605,55 @@ namespace Taslow.Project.Function
             }
 
             return new ProjectScopePatchRequest { Scopes = scopes };
+        }
+
+        private static ProjectScopeGtsLinkRequest ParseScopeGtsLinkRequest(string requestBody)
+        {
+            var payload = string.IsNullOrWhiteSpace(requestBody)
+                ? new JObject()
+                : JObject.Parse(requestBody);
+
+            JToken mappingToken = null;
+            foreach (var key in new[] { "mappings", "Mappings", "links", "Links" })
+            {
+                if (payload.TryGetValue(key, StringComparison.OrdinalIgnoreCase, out var found))
+                {
+                    mappingToken = found;
+                    break;
+                }
+            }
+
+            var mappings = new List<ProjectScopeGtsLinkItem>();
+            if (mappingToken?.Type == JTokenType.Array)
+            {
+                foreach (var mappingEntry in mappingToken.Children())
+                {
+                    if (mappingEntry.Type != JTokenType.Object)
+                    {
+                        continue;
+                    }
+
+                    var mappingObject = (JObject)mappingEntry;
+                    mappings.Add(new ProjectScopeGtsLinkItem
+                    {
+                        ScopeId = ReadString(mappingObject, "scopeId", "ScopeID", "scopeid"),
+                        GroupTaskSetId = ReadString(
+                            mappingObject,
+                            "groupTaskSetId",
+                            "GroupTaskSetID",
+                            "gtsId",
+                            "id"),
+                        OrchestrationRunId = ReadString(
+                            mappingObject,
+                            "orchestrationRunId",
+                            "OrchestrationRunId",
+                            "runId",
+                            "RunId")
+                    });
+                }
+            }
+
+            return new ProjectScopeGtsLinkRequest { Mappings = mappings };
         }
 
         private static ProjectCreateRequest ParseCreateRequest(string requestBody)

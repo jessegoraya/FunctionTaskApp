@@ -8,6 +8,9 @@ namespace Taslow.Shared.Model
         [JsonProperty("scopeId")]
         public string ScopeId { get; set; }
 
+        [JsonProperty("projectScopeAreaTitle")]
+        public string ProjectScopeAreaTitle { get; set; }
+
         [JsonProperty("projectScopeArea")]
         public string ProjectScopeArea { get; set; }
 
