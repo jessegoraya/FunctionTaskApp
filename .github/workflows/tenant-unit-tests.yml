@@ -1,0 +1,20 @@
+name: Tenant Unit Tests
+
+on:
+  pull_request:
+    branches: [ master, main ]
+  push:
+    branches: [ master, main ]
+
+jobs:
+  unit-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+      - name: Restore
+        run: dotnet restore TenantApp.Tests/TenantApp.Tests.csproj
+      - name: Test
+        run: dotnet test TenantApp.Tests/TenantApp.Tests.csproj --configuration Release --no-restore

@@ -11,6 +11,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VectorizeJSONContent", "..\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Taslow.Shared", "Taslow.Shared\Taslow.Shared.csproj", "{469691B2-800C-4F73-AB10-06856476FA4D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TenantApp", "TenantApp\TenantApp.csproj", "{CCBAF18F-0AFC-4BE6-A133-89BF87B6CB37}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TenantApp.IntegrationTests", "TenantApp.IntegrationTests\TenantApp.IntegrationTests.csproj", "{5450C836-1C52-409D-8DDC-F9A150CF03AB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +37,14 @@ Global
 		{469691B2-800C-4F73-AB10-06856476FA4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{469691B2-800C-4F73-AB10-06856476FA4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{469691B2-800C-4F73-AB10-06856476FA4D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CCBAF18F-0AFC-4BE6-A133-89BF87B6CB37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCBAF18F-0AFC-4BE6-A133-89BF87B6CB37}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CCBAF18F-0AFC-4BE6-A133-89BF87B6CB37}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CCBAF18F-0AFC-4BE6-A133-89BF87B6CB37}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5450C836-1C52-409D-8DDC-F9A150CF03AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5450C836-1C52-409D-8DDC-F9A150CF03AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5450C836-1C52-409D-8DDC-F9A150CF03AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5450C836-1C52-409D-8DDC-F9A150CF03AB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
