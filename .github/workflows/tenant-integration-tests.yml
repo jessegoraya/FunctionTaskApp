@@ -1,0 +1,21 @@
+name: Tenant Integration Tests
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  integration-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+      - name: Restore
+        run: dotnet restore TenantApp.IntegrationTests/TenantApp.IntegrationTests.csproj
+      - name: Test
+        run: dotnet test TenantApp.IntegrationTests/TenantApp.IntegrationTests.csproj --configuration Release --no-restore
