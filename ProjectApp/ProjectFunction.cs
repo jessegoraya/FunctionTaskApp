@@ -45,7 +45,7 @@ namespace Taslow.Project.Function
 
         [FunctionName("CreateProjectV2")]
         public async Task<IActionResult> CreateProjectV2Async(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "projects/{tenantId}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "projects/{tenantId:guid}")] HttpRequest req,
             string tenantId,
             ILogger log)
         {

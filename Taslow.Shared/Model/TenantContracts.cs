@@ -194,6 +194,64 @@ namespace Taslow.Shared.Model
         [JsonProperty("provider")]
         public string? Provider { get; set; }
 
+        [JsonProperty("company_poc_name")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(120)]
+        public string CompanyPocName { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_title")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(120)]
+        public string CompanyPocTitle { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_email")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(254)]
+        public string CompanyPocEmail { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_phone")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(32)]
+        public string CompanyPocPhone { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line1")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(120)]
+        public string MailingAddressLine1 { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line2")]
+        [MaxLength(120)]
+        public string? MailingAddressLine2 { get; set; }
+
+        [JsonProperty("mailing_city")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(80)]
+        public string MailingCity { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_state_province")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(80)]
+        public string MailingStateProvince { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_postal_code")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(20)]
+        public string MailingPostalCode { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_country_code")]
+        [Required]
+        [MinLength(2)]
+        [MaxLength(2)]
+        public string MailingCountryCode { get; set; } = string.Empty;
+
         [JsonProperty("billing")]
         public TenantBillingPatchRequest? Billing { get; set; }
 
@@ -219,6 +277,46 @@ namespace Taslow.Shared.Model
 
         [JsonProperty("status")]
         public string? Status { get; set; }
+
+        [JsonProperty("company_poc_name")]
+        [MaxLength(120)]
+        public string? CompanyPocName { get; set; }
+
+        [JsonProperty("company_poc_title")]
+        [MaxLength(120)]
+        public string? CompanyPocTitle { get; set; }
+
+        [JsonProperty("company_poc_email")]
+        [MaxLength(254)]
+        public string? CompanyPocEmail { get; set; }
+
+        [JsonProperty("company_poc_phone")]
+        [MaxLength(32)]
+        public string? CompanyPocPhone { get; set; }
+
+        [JsonProperty("mailing_address_line1")]
+        [MaxLength(120)]
+        public string? MailingAddressLine1 { get; set; }
+
+        [JsonProperty("mailing_address_line2")]
+        [MaxLength(120)]
+        public string? MailingAddressLine2 { get; set; }
+
+        [JsonProperty("mailing_city")]
+        [MaxLength(80)]
+        public string? MailingCity { get; set; }
+
+        [JsonProperty("mailing_state_province")]
+        [MaxLength(80)]
+        public string? MailingStateProvince { get; set; }
+
+        [JsonProperty("mailing_postal_code")]
+        [MaxLength(20)]
+        public string? MailingPostalCode { get; set; }
+
+        [JsonProperty("mailing_country_code")]
+        [MaxLength(2)]
+        public string? MailingCountryCode { get; set; }
 
         [JsonProperty("entitlements_json")]
         public Dictionary<string, object>? EntitlementsJson { get; set; }
@@ -333,6 +431,36 @@ namespace Taslow.Shared.Model
 
         [JsonProperty("legal_name")]
         public string? LegalName { get; set; }
+
+        [JsonProperty("company_poc_name")]
+        public string CompanyPocName { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_title")]
+        public string CompanyPocTitle { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_email")]
+        public string CompanyPocEmail { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_phone")]
+        public string CompanyPocPhone { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line1")]
+        public string MailingAddressLine1 { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line2")]
+        public string? MailingAddressLine2 { get; set; }
+
+        [JsonProperty("mailing_city")]
+        public string MailingCity { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_state_province")]
+        public string MailingStateProvince { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_postal_code")]
+        public string MailingPostalCode { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_country_code")]
+        public string MailingCountryCode { get; set; } = string.Empty;
 
         [JsonProperty("created_at")]
         public string CreatedAt { get; set; } = string.Empty;

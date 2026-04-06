@@ -79,6 +79,18 @@ namespace Taslow.Tenant.Service
                     Status = status,
                     DisplayName = request.DisplayName.Trim(),
                     LegalName = request.LegalName?.Trim(),
+                    CompanyPocName = request.CompanyPocName.Trim(),
+                    CompanyPocTitle = request.CompanyPocTitle.Trim(),
+                    CompanyPocEmail = request.CompanyPocEmail.Trim(),
+                    CompanyPocPhone = request.CompanyPocPhone.Trim(),
+                    MailingAddressLine1 = request.MailingAddressLine1.Trim(),
+                    MailingAddressLine2 = string.IsNullOrWhiteSpace(request.MailingAddressLine2)
+                        ? null
+                        : request.MailingAddressLine2.Trim(),
+                    MailingCity = request.MailingCity.Trim(),
+                    MailingStateProvince = request.MailingStateProvince.Trim(),
+                    MailingPostalCode = request.MailingPostalCode.Trim(),
+                    MailingCountryCode = request.MailingCountryCode.Trim().ToUpperInvariant(),
                     CreatedAt = now,
                     UpdatedAt = now,
                     EntitlementsJson = new Dictionary<string, object>()
@@ -156,6 +168,58 @@ namespace Taslow.Tenant.Service
                 if (request.EntitlementsJson != null)
                 {
                     document.Tenant.EntitlementsJson = request.EntitlementsJson;
+                }
+
+                if (request.CompanyPocName != null)
+                {
+                    document.Tenant.CompanyPocName = request.CompanyPocName.Trim();
+                }
+
+                if (request.CompanyPocTitle != null)
+                {
+                    document.Tenant.CompanyPocTitle = request.CompanyPocTitle.Trim();
+                }
+
+                if (request.CompanyPocEmail != null)
+                {
+                    document.Tenant.CompanyPocEmail = request.CompanyPocEmail.Trim();
+                }
+
+                if (request.CompanyPocPhone != null)
+                {
+                    document.Tenant.CompanyPocPhone = request.CompanyPocPhone.Trim();
+                }
+
+                if (request.MailingAddressLine1 != null)
+                {
+                    document.Tenant.MailingAddressLine1 = request.MailingAddressLine1.Trim();
+                }
+
+                if (request.MailingAddressLine2 != null)
+                {
+                    document.Tenant.MailingAddressLine2 = string.IsNullOrWhiteSpace(request.MailingAddressLine2)
+                        ? null
+                        : request.MailingAddressLine2.Trim();
+                }
+
+                if (request.MailingCity != null)
+                {
+                    document.Tenant.MailingCity = request.MailingCity.Trim();
+                }
+
+                if (request.MailingStateProvince != null)
+                {
+                    document.Tenant.MailingStateProvince = request.MailingStateProvince.Trim();
+                }
+
+                if (request.MailingPostalCode != null)
+                {
+                    document.Tenant.MailingPostalCode = request.MailingPostalCode.Trim();
+                }
+
+                if (request.MailingCountryCode != null)
+                {
+                    document.Tenant.MailingCountryCode = request.MailingCountryCode.Trim().ToUpperInvariant();
                 }
             }, cancellationToken);
         }
