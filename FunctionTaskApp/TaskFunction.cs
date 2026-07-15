@@ -1,56 +1,61 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Taslow.Shared.Model;
+using Taslow.Task.Client.Interface;
+using Taslow.Task.DAL.Interface;
 using Taslow.Task.Model;
 using Taslow.Task.Service;
-using Taslow.Shared.Model;
-using System.Collections.Generic;
-using System.Linq;
-using Taslow.Task.DAL.Interface;
-using Taslow.Task.Client.Interface;
+using Taslow.Task.Service.Interface;
 
 namespace Taslow.Task.Function
 {
-
     public class FunctionTaskController
     {
         private readonly ITaskDBUtil _taskDb;
         private readonly IProjectServiceClient _projSvcClient;
+        private readonly IAnalyticsService _analyticsService;
+        private readonly ILogger<FunctionTaskController> _log;
 
-        public FunctionTaskController(ITaskDBUtil taskDb, IProjectServiceClient projSvcClient)
+        public FunctionTaskController(
+            ITaskDBUtil taskDb,
+            IProjectServiceClient projSvcClient,
+            IAnalyticsService analyticsService,
+            ILogger<FunctionTaskController> log)
         {
             _taskDb = taskDb;
             _projSvcClient = projSvcClient;
+            _analyticsService = analyticsService;
+            _log = log;
         }
 
-        [FunctionName("Ping")]
-        public IActionResult Ping(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ping")]
-              HttpRequest req)
+        [Function("Ping")]
+        public Task<HttpResponseData> Ping(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "ping")] HttpRequestData req)
         {
-            return new OkObjectResult("pong");
+            return TextAsync(req, HttpStatusCode.OK, "pong");
         }
 
-        [FunctionName("AddGroupTaskSet")]
-        public async Task<IActionResult> RunAddGroupTaskSetAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "grouptaskset")] HttpRequest req,
-            ILogger log)
+        [Function("AddGroupTaskSet")]
+        public async Task<HttpResponseData> RunAddGroupTaskSetAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "grouptaskset")] HttpRequestData req)
         {
-            log.LogInformation("AddGroupTaskSet function processed a request.");
+            _log.LogInformation("AddGroupTaskSet function processed a request.");
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            string requestBody = await ReadBodyAsync(req);
             GroupTaskSet newGTS = JsonConvert.DeserializeObject<GroupTaskSet>(requestBody);
 
             if (newGTS == null)
             {
-                return new BadRequestObjectResult("Invalid payload");
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Invalid payload");
             }
 
             newGTS.id = Guid.NewGuid().ToString();
@@ -59,300 +64,255 @@ namespace Taslow.Task.Function
 
             if (result != null && !string.IsNullOrEmpty(result.id))
             {
-                return new OkObjectResult(result);
+                return await JsonAsync(req, HttpStatusCode.OK, result);
             }
-            else
-            {
-                return new BadRequestObjectResult("Could not add GroupTaskSet");
-            }
+
+            return await TextAsync(req, HttpStatusCode.BadRequest, "Could not add GroupTaskSet");
         }
 
-        //use this function to get a Group Task when you have the GTS Id (i.e. ID) and Tenant ID
-        [FunctionName("GetGroupTaskSetById")]
-        public async Task<IActionResult> RunGetGroupTaskSetByIdAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptaskset/{id}/{tenantid}")] HttpRequest req,
+        [Function("GetGroupTaskSetById")]
+        public async Task<HttpResponseData> RunGetGroupTaskSetByIdAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptaskset/{id}/{tenantid}")] HttpRequestData req,
             string id,
-            string tenantid,
-            ILogger log)
+            string tenantid)
         {
-            log.LogInformation($"GetGroupTaskSetById function processed a request for id: {id}, tenantid: {tenantid}");
+            _log.LogInformation(
+                "GetGroupTaskSetById function processed a request for id: {Id}, tenantid: {TenantId}",
+                id,
+                tenantid);
 
             GroupTaskSet result = await _taskDb.GetGroupTaskSet(id, tenantid);
 
-            if (result != null)
-            {
-                return new OkObjectResult(result);
-            }
-            else
-            {
-                return new NotFoundResult();
-            }
+            return result != null
+                ? await JsonAsync(req, HttpStatusCode.OK, result)
+                : req.CreateResponse(HttpStatusCode.NotFound);
         }
 
-        //use this function to get a Group Task when you have the Case Id (i.e. Project) and Tenant ID
-        [FunctionName("GetGroupTaskSetByProjectId")]
-        public async Task<IActionResult> RunGetGroupTaskSetByProjectIdAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetbyproject/{projectid}/{tenantid}")] HttpRequest req,
+        [Function("GetGroupTaskSetByProjectId")]
+        public async Task<HttpResponseData> RunGetGroupTaskSetByProjectIdAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetbyproject/{projectid}/{tenantid}")] HttpRequestData req,
             string projectid,
-            string tenantid,
-            ILogger log)
+            string tenantid)
         {
-            log.LogInformation($"GetGroupTaskSetByCaseId function processed a request for id: {projectid}, tenantid: {tenantid}");
+            _log.LogInformation(
+                "GetGroupTaskSetByCaseId function processed a request for id: {ProjectId}, tenantid: {TenantId}",
+                projectid,
+                tenantid);
 
             GroupTaskSet result = await _taskDb.GetGroupTaskSetByProjectId(projectid, tenantid);
 
-            if (result != null)
-            {
-                return new OkObjectResult(result);
-            }
-            else
-            {
-                return new NotFoundResult();
-            }
+            return result != null
+                ? await JsonAsync(req, HttpStatusCode.OK, result)
+                : req.CreateResponse(HttpStatusCode.NotFound);
         }
 
-        [FunctionName("GetGroupTaskSetsByProjectId")]
-        public async Task<IActionResult> RunGetGroupTaskSetsByProjectIdAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetsbyproject/{projectid}/{tenantid}")] HttpRequest req,
+        [Function("GetGroupTaskSetsByProjectId")]
+        public async Task<HttpResponseData> RunGetGroupTaskSetsByProjectIdAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetsbyproject/{projectid}/{tenantid}")] HttpRequestData req,
             string projectid,
-            string tenantid,
-            ILogger log)
+            string tenantid)
         {
-            log.LogInformation(
-                "GetGroupTaskSetsByProjectId function processed a request for projectid: {projectid}, tenantid: {tenantid}",
+            _log.LogInformation(
+                "GetGroupTaskSetsByProjectId function processed a request for projectid: {ProjectId}, tenantid: {TenantId}",
                 projectid,
                 tenantid);
 
             var result = await _taskDb.GetGroupTaskSetsByProjectId(projectid, tenantid);
-            return new OkObjectResult(result ?? new List<GroupTaskSet>());
+            return await JsonAsync(req, HttpStatusCode.OK, result ?? new List<GroupTaskSet>());
         }
 
-        [FunctionName("UpdateGroupTaskSet")]
-        public async Task<IActionResult> RunUpdateGroupTaskSetAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "put", Route = "grouptaskset/{id}/{tenantid}")] HttpRequest req,
+        [Function("UpdateGroupTaskSet")]
+        public async Task<HttpResponseData> RunUpdateGroupTaskSetAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "put", Route = "grouptaskset/{id}/{tenantid}")] HttpRequestData req,
             string id,
-            string tenantid,
-            ILogger log)
+            string tenantid)
         {
-            log.LogInformation($"UpdateGroupTaskSet function processed a request for id: {id}, tenantid: {tenantid}");
+            _log.LogInformation(
+                "UpdateGroupTaskSet function processed a request for id: {Id}, tenantid: {TenantId}",
+                id,
+                tenantid);
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            string requestBody = await ReadBodyAsync(req);
             GroupTaskSet updatedGTS = JsonConvert.DeserializeObject<GroupTaskSet>(requestBody);
 
             if (updatedGTS == null)
             {
-                return new BadRequestObjectResult("Invalid payload");
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Invalid payload");
             }
 
             bool result = await _taskDb.UpdateGroupTaskSet(id, tenantid, updatedGTS);
 
-            if (result != true)
-            {
-                return new OkObjectResult(result);
-            }
-            else
-            {
-                return new NotFoundResult();
-            }
+            return result != true
+                ? await JsonAsync(req, HttpStatusCode.OK, result)
+                : req.CreateResponse(HttpStatusCode.NotFound);
         }
 
-        [FunctionName("DeleteGroupTaskSet")]
-        public async Task<IActionResult> RunDeleteGroupTaskSetAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "grouptaskset/{id}/{tenantid}")] HttpRequest req,
+        [Function("DeleteGroupTaskSet")]
+        public async Task<HttpResponseData> RunDeleteGroupTaskSetAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "delete", Route = "grouptaskset/{id}/{tenantid}")] HttpRequestData req,
             string id,
-            string tenantid,
-            ILogger log)
+            string tenantid)
         {
-            log.LogInformation($"DeleteGroupTaskSet function processed a request for id: {id}, tenantid: {tenantid}");
+            _log.LogInformation(
+                "DeleteGroupTaskSet function processed a request for id: {Id}, tenantid: {TenantId}",
+                id,
+                tenantid);
 
             bool deleted = await _taskDb.DeleteGroupTaskSet(id, tenantid);
 
-            if (deleted)
-            {
-                return new OkResult();
-            }
-            else
-            {
-                return new NotFoundResult();
-            }
+            return deleted
+                ? req.CreateResponse(HttpStatusCode.OK)
+                : req.CreateResponse(HttpStatusCode.NotFound);
         }
 
-
-        [FunctionName("AddGroupTaskToGTS")]
-        public async Task<IActionResult> AddGroupTaskToGTS(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addgrouptasktogts/{id}/{tenantid}/")] HttpRequest req,
-        string id,
-        string tenantid,
-        ILogger log)
+        [Function("AddGroupTaskToGTS")]
+        public async Task<HttpResponseData> AddGroupTaskToGTS(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addgrouptasktogts/{id}/{tenantid}/")] HttpRequestData req,
+            string id,
+            string tenantid)
         {
-            log.LogInformation("Processing request to add a new GroupTask.");
+            _log.LogInformation("Processing request to add a new GroupTask.");
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            GroupTask NewGT;
+            string requestBody = await ReadBodyAsync(req);
 
             try
             {
-                NewGT = JsonConvert.DeserializeObject<GroupTask>(requestBody);
-                if (NewGT == null)
+                GroupTask newGT = JsonConvert.DeserializeObject<GroupTask>(requestBody);
+                if (newGT == null)
                 {
-                    return new BadRequestObjectResult("Invalid GroupTask payload.");
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Invalid GroupTask payload.");
                 }
 
                 if (string.IsNullOrEmpty(tenantid))
                 {
-                    return new BadRequestObjectResult("Missing required query parameter: tenantid");
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Missing required query parameter: tenantid");
                 }
-                SvcUtil svc = new SvcUtil();
-                NewGT = svc.SetNewIDs(NewGT);
 
-                bool success = await _taskDb.CreateGroupTaskAsync(id, tenantid, NewGT);
-                if (success)
-                {
-                    return new OkObjectResult($"GroupTask added to GroupTaskSet {id}.");
-                }
-                else
-                {
-                    return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-                }
+                SvcUtil svc = new SvcUtil();
+                newGT = svc.SetNewIDs(newGT);
+
+                bool success = await _taskDb.CreateGroupTaskAsync(id, tenantid, newGT);
+                return success
+                    ? await TextAsync(req, HttpStatusCode.OK, $"GroupTask added to GroupTaskSet {id}.")
+                    : req.CreateResponse(HttpStatusCode.InternalServerError);
             }
             catch (JsonException ex)
             {
-                log.LogError(ex, "Failed to deserialize GroupTask.");
-                return new BadRequestObjectResult("Malformed JSON.");
+                _log.LogError(ex, "Failed to deserialize GroupTask.");
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Malformed JSON.");
             }
-
         }
 
-        [FunctionName("UpdateGroupTaskinGTS")]
-        public async Task<IActionResult> UpdateGroupTaskinGTS(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "updgrouptask/{id}/{tenantid}/")] HttpRequest req, string id, string tenantid,
-       ILogger log)
+        [Function("UpdateGroupTaskinGTS")]
+        public async Task<HttpResponseData> UpdateGroupTaskinGTS(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "updgrouptask/{id}/{tenantid}/")] HttpRequestData req,
+            string id,
+            string tenantid)
         {
             try
             {
-                // Read and deserialize body
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                string requestBody = await ReadBodyAsync(req);
                 GroupTask updGT = JsonConvert.DeserializeObject<GroupTask>(requestBody);
 
                 if (updGT == null)
                 {
-                    return new BadRequestObjectResult("Error converting json");
-
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Error converting json");
                 }
 
                 bool success = await _taskDb.UpdateGroupTaskAsync(id, tenantid, updGT);
-                if (success)
-                {
-                    return new OkObjectResult($"GroupTask added to GroupTaskSet {id}.");
-                }
-                else
-                {
-                    return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-                }
+                return success
+                    ? await TextAsync(req, HttpStatusCode.OK, $"GroupTask added to GroupTaskSet {id}.")
+                    : req.CreateResponse(HttpStatusCode.InternalServerError);
             }
             catch (Exception ex)
             {
-                log.LogError(ex, "Failed to deserialize GroupTask.");
-                return new BadRequestObjectResult("Malformed JSON.");
+                _log.LogError(ex, "Failed to deserialize GroupTask.");
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Malformed JSON.");
             }
         }
 
-        [FunctionName("AddIndividualTaskToGT")]
-        public async Task<IActionResult> AddIndividualTaskToGT(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addindtask/{id}/{tenantid}/{gtid}/")] HttpRequest req,
-        string id,
-        string tenantid,
-        string gtid,
-        ILogger log)
+        [Function("AddIndividualTaskToGT")]
+        public async Task<HttpResponseData> AddIndividualTaskToGT(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "addindtask/{id}/{tenantid}/{gtid}/")] HttpRequestData req,
+            string id,
+            string tenantid,
+            string gtid)
         {
-            log.LogInformation("Processing request to add a new IndividualTask.");
+            _log.LogInformation("Processing request to add a new IndividualTask.");
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            IndividualTask NewIT;
+            string requestBody = await ReadBodyAsync(req);
 
             try
             {
-                NewIT = JsonConvert.DeserializeObject<IndividualTask>(requestBody);
-                if (NewIT == null)
+                IndividualTask newIT = JsonConvert.DeserializeObject<IndividualTask>(requestBody);
+                if (newIT == null)
                 {
-                    return new BadRequestObjectResult("Invalid IndividualTask payload.");
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Invalid IndividualTask payload.");
                 }
 
                 if (string.IsNullOrEmpty(tenantid))
                 {
-                    return new BadRequestObjectResult("Missing required query parameter: tenantid");
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Missing required query parameter: tenantid");
                 }
+
                 SvcUtil svc = new SvcUtil();
-                NewIT = svc.SetNewITIDs(NewIT);
+                newIT = svc.SetNewITIDs(newIT);
 
-                bool success = await _taskDb.CreateIndividualTaskAsync(id, tenantid, gtid, NewIT);
+                bool success = await _taskDb.CreateIndividualTaskAsync(id, tenantid, gtid, newIT);
 
-                if (success)
-                {
-                    return new OkObjectResult($"IndividualTask added to GroupTask {gtid}.");
-                }
-                else
-                {
-                    return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-                }
+                return success
+                    ? await TextAsync(req, HttpStatusCode.OK, $"IndividualTask added to GroupTask {gtid}.")
+                    : req.CreateResponse(HttpStatusCode.InternalServerError);
             }
             catch (JsonException ex)
             {
-                log.LogError(ex, "Failed to deserialize GroupTask.");
-                return new BadRequestObjectResult("Malformed JSON.");
+                _log.LogError(ex, "Failed to deserialize GroupTask.");
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Malformed JSON.");
             }
-
         }
 
-        [FunctionName("UpdateIndividualTaskinGT")]
-        public async Task<IActionResult> UpdateIndividualTaskinGT(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "updindtask/{id}/{tenantid}/{gtid}/")] HttpRequest req, string id, string gtid, string tenantid,
-        ILogger log)
+        [Function("UpdateIndividualTaskinGT")]
+        public async Task<HttpResponseData> UpdateIndividualTaskinGT(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "updindtask/{id}/{tenantid}/{gtid}/")] HttpRequestData req,
+            string id,
+            string gtid,
+            string tenantid)
         {
             try
             {
-                // Read and deserialize body
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                string requestBody = await ReadBodyAsync(req);
                 UpdateIndividualTaskDTO updIT = JsonConvert.DeserializeObject<UpdateIndividualTaskDTO>(requestBody);
 
                 if (updIT == null)
                 {
-                    return new BadRequestObjectResult("Error converting json");
-
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Error converting json");
                 }
 
                 bool success = await _taskDb.UpdateIndividualTaskAsync(id, tenantid, gtid, updIT);
-                if (success)
-                {
-                    return new OkObjectResult($"IndividualTask added to GroupTask {gtid} with document {id}.");
-                }
-                else
-                {
-                    return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-                }
+                return success
+                    ? await TextAsync(req, HttpStatusCode.OK, $"IndividualTask added to GroupTask {gtid} with document {id}.")
+                    : req.CreateResponse(HttpStatusCode.InternalServerError);
             }
             catch (Exception ex)
             {
-                log.LogError(ex, "Failed to deserialize GroupTask.");
-                return new BadRequestObjectResult("Malformed JSON.");
+                _log.LogError(ex, "Failed to deserialize GroupTask.");
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Malformed JSON.");
             }
         }
 
-
-        [FunctionName("MoveIndividualTask")]
-        public async Task<IActionResult> MoveIndividualTask(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "moveindtask/{tenantid}/")] HttpRequest req,
-        string tenantid,
-        ILogger log)
+        [Function("MoveIndividualTask")]
+        public async Task<HttpResponseData> MoveIndividualTask(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "moveindtask/{tenantid}/")] HttpRequestData req,
+            string tenantid)
         {
             try
             {
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                string requestBody = await ReadBodyAsync(req);
                 JObject payload = JsonConvert.DeserializeObject<JObject>(requestBody);
 
                 if (payload == null)
                 {
-                    return new BadRequestObjectResult("Error converting json");
+                    return await TextAsync(req, HttpStatusCode.BadRequest, "Error converting json");
                 }
 
                 string ReadToken(params string[] paths)
@@ -369,6 +329,7 @@ namespace Taslow.Task.Function
                             }
                         }
                     }
+
                     return null;
                 }
 
@@ -390,78 +351,225 @@ namespace Taslow.Task.Function
                 }
 
                 bool success = await _taskDb.MoveIndividualTaskAsync(tenantid, moveIT);
-                if (success)
-                {
-                    return new OkObjectResult("IndividualTask moved successfully.");
-                }
-
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                return success
+                    ? await TextAsync(req, HttpStatusCode.OK, "IndividualTask moved successfully.")
+                    : req.CreateResponse(HttpStatusCode.InternalServerError);
             }
             catch (ArgumentException ex)
             {
-                log.LogError(ex, "Invalid move request payload for tenant {tenantid}", tenantid);
-                return new BadRequestObjectResult(ex.Message);
+                _log.LogError(ex, "Invalid move request payload for tenant {TenantId}", tenantid);
+                return await TextAsync(req, HttpStatusCode.BadRequest, ex.Message);
             }
             catch (InvalidOperationException ex)
             {
-                log.LogError(ex, "Unable to move IndividualTask for tenant {tenantid}", tenantid);
-                return new NotFoundObjectResult(ex.Message);
+                _log.LogError(ex, "Unable to move IndividualTask for tenant {TenantId}", tenantid);
+                return await TextAsync(req, HttpStatusCode.NotFound, ex.Message);
             }
             catch (Exception ex)
             {
-                log.LogError(ex, "Failed to move IndividualTask for tenant {tenantid}", tenantid);
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                _log.LogError(ex, "Failed to move IndividualTask for tenant {TenantId}", tenantid);
+                return req.CreateResponse(HttpStatusCode.InternalServerError);
             }
         }
-        //Get GTS Context DTO objects by Tenant and Person 
-        [FunctionName("GetGTContextDTObyTenantandPerson")]
-        public async Task<IActionResult> RunGetGroupTaskSetByTenantAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "taskcontextdto/{tenantid}/{person}")] HttpRequest req,
+
+        [Function("GetGTContextDTObyTenantandPerson")]
+        public async Task<HttpResponseData> RunGetGroupTaskSetByTenantAsync(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "taskcontextdto/{tenantid}/{person}")] HttpRequestData req,
             string tenantid,
-            string person,
-            ILogger log)
+            string person)
         {
-            log.LogInformation($"GetGTSDTOyTenantandPerson function processed a request for tenantid: {tenantid}");
+            _log.LogInformation("GetGTSDTOyTenantandPerson function processed a request for tenantid: {TenantId}", tenantid);
 
             List<TaskContextDTO> result = await _taskDb.GetGTContextDTO(tenantid, person);
 
-            if (result != null)
-            {
-                return new OkObjectResult(result);
-            }
-            else
-            {
-                return new NotFoundResult();
-            }
+            return result != null
+                ? await JsonAsync(req, HttpStatusCode.OK, result)
+                : req.CreateResponse(HttpStatusCode.NotFound);
         }
 
-        //Provide a manager name so that you can return on all tasks across projects where that user is a manager
-        [FunctionName("GetTasksForManagedProjects")]
-        public async Task<IActionResult> GetTasksForManagedProjects(
-        [HttpTrigger(AuthorizationLevel.Function, "get", Route = "getmgrtaskcontextdto/{tenantid}/{manager}")] HttpRequest req,
-        string tenantid,
-        string manager,
-        ILogger log)
+        [Function("GetTasksForManagedProjects")]
+        public async Task<HttpResponseData> GetTasksForManagedProjects(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "getmgrtaskcontextdto/{tenantid}/{manager}")] HttpRequestData req,
+            string tenantid,
+            string manager)
         {
             if (string.IsNullOrEmpty(manager))
-                return new BadRequestObjectResult("Manager email is required.");
+            {
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Manager email is required.");
+            }
 
-            // Step 1: Get all project IDs where user is a manager
             var projectIds = await _projSvcClient.GetProjectIdsForManagerAsync(tenantid, manager);
 
             if (projectIds == null || !projectIds.Any())
-                return new OkObjectResult(new List<TaskContextDTO>()); // no results
+            {
+                return await JsonAsync(req, HttpStatusCode.OK, new List<TaskContextDTO>());
+            }
 
-            // Step 2: Fetch all tasks for those project IDs
             var tasks = await _taskDb.GetTasksByProjectIdsAsync(tenantid, projectIds);
 
-            return new OkObjectResult(tasks);
+            return await JsonAsync(req, HttpStatusCode.OK, tasks);
         }
 
+        [Function("GetAnalyticsPortfolio")]
+        public Task<HttpResponseData> GetAnalyticsPortfolio(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analytics/{tenantId}/portfolio")] HttpRequestData req,
+            string tenantId) =>
+            ExecuteAnalyticsAsync(req, () => _analyticsService.GetPortfolioAsync(
+                tenantId,
+                ReadUserEmail(req),
+                ReadList(req, "x-taslow-roles", "x-user-roles", "x-user-role"),
+                ReadList(req, "x-taslow-market-codes"),
+                ReadQueryList(req, "marketCode")));
+
+        [Function("GetAnalyticsProjectType")]
+        public Task<HttpResponseData> GetAnalyticsProjectType(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analytics/{tenantId}/project-types/{projectType}")] HttpRequestData req,
+            string tenantId,
+            string projectType) =>
+            ExecuteAnalyticsAsync(req, () => _analyticsService.GetProjectTypeAsync(
+                tenantId,
+                projectType,
+                ReadUserEmail(req),
+                ReadList(req, "x-taslow-roles", "x-user-roles", "x-user-role"),
+                ReadList(req, "x-taslow-market-codes"),
+                ReadQueryList(req, "marketCode")));
+
+        [Function("GetAnalyticsProjectHierarchy")]
+        public Task<HttpResponseData> GetAnalyticsProjectHierarchy(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analytics/{tenantId}/projects/{projectId}/hierarchy")] HttpRequestData req,
+            string tenantId,
+            string projectId) =>
+            ExecuteAnalyticsAsync(req, () => _analyticsService.GetProjectHierarchyAsync(
+                tenantId,
+                projectId,
+                ReadUserEmail(req),
+                ReadList(req, "x-taslow-roles", "x-user-roles", "x-user-role"),
+                ReadList(req, "x-taslow-market-codes")));
+
+        private async Task<HttpResponseData> ExecuteAnalyticsAsync<T>(
+            HttpRequestData req,
+            Func<Task<T>> action)
+        {
+            try
+            {
+                return await JsonAsync(req, HttpStatusCode.OK, await action());
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return await TextAsync(req, HttpStatusCode.Forbidden, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                return await TextAsync(req, HttpStatusCode.BadRequest, ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return await TextAsync(req, HttpStatusCode.NotFound, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Analytics request failed for {Path}", req.Url.AbsolutePath);
+                return req.CreateResponse(HttpStatusCode.InternalServerError);
+            }
+        }
+
+        private static async Task<string> ReadBodyAsync(HttpRequestData req)
+        {
+            using var reader = new StreamReader(req.Body);
+            return await reader.ReadToEndAsync();
+        }
+
+        private static async Task<HttpResponseData> TextAsync(
+            HttpRequestData req,
+            HttpStatusCode statusCode,
+            string value)
+        {
+            var response = req.CreateResponse(statusCode);
+            response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
+            await response.WriteStringAsync(value ?? string.Empty);
+            return response;
+        }
+
+        private static async Task<HttpResponseData> JsonAsync(
+            HttpRequestData req,
+            HttpStatusCode statusCode,
+            object value)
+        {
+            var response = req.CreateResponse(statusCode);
+            response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+            await response.WriteStringAsync(JsonConvert.SerializeObject(value));
+            return response;
+        }
+
+        private static string ReadUserEmail(HttpRequestData req) =>
+            FirstHeader(req, "x-user-email", "x-taslow-user-email", "x-taslow-email");
+
+        private static string FirstHeader(HttpRequestData req, params string[] names)
+        {
+            foreach (var name in names)
+            {
+                if (req.Headers.TryGetValues(name, out var values))
+                {
+                    var value = values.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static IReadOnlyCollection<string> ReadList(HttpRequestData req, params string[] headerNames) =>
+            headerNames
+                .SelectMany(name => req.Headers.TryGetValues(name, out var values) ? values : Array.Empty<string>())
+                .SelectMany(value => value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                .Select(value => value.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        private static IReadOnlyCollection<string> ReadQueryList(HttpRequestData req, string name)
+        {
+            var query = ParseQuery(req.Url);
+            return query.TryGetValue(name, out var values)
+                ? values
+                    .SelectMany(value => value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                    .Select(value => value.Trim())
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                : new List<string>();
+        }
+
+        private static IReadOnlyDictionary<string, List<string>> ParseQuery(Uri uri)
+        {
+            var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var query = uri.Query;
+            if (string.IsNullOrWhiteSpace(query) || query == "?")
+            {
+                return result;
+            }
+
+            foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var pieces = part.Split('=', 2);
+                var key = Uri.UnescapeDataString(pieces[0].Replace("+", " "));
+                var value = pieces.Length > 1
+                    ? Uri.UnescapeDataString(pieces[1].Replace("+", " "))
+                    : string.Empty;
+
+                if (!result.TryGetValue(key, out var values))
+                {
+                    values = new List<string>();
+                    result[key] = values;
+                }
+
+                values.Add(value);
+            }
+
+            return result;
+        }
     }
-
 }
-
-
-
-

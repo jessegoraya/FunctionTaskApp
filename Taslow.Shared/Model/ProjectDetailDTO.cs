@@ -6,15 +6,10 @@ namespace Taslow.Shared.Model
     public class ProjectDetailDTO : ProjectDTO
     {
         [JsonProperty("extProjectId")]
-        public string ExtProjectId { get; set; }
+        public string ExtProjectId { get; set; } = string.Empty;
 
         [JsonProperty("associatedPeople")]
         public List<ProjectPersonDTO> AssociatedPeople { get; set; } = new();
 
-        [JsonProperty("associatedManagers")]
-        public List<ProjectPersonDTO> AssociatedManagers { get; set; } = new();
-
-        [JsonProperty("scopes")]
-        public List<ProjectScopeDTO> Scopes { get; set; } = new();
     }
 }

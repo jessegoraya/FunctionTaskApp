@@ -134,6 +134,9 @@ namespace Taslow.Task.Model
         [JsonProperty(PropertyName = "IndividualTaskSetID")]
         public string individualtasksetid { get; set; }
 
+        [JsonProperty(PropertyName = "IndividualTaskSetName")]
+        public string individualtasksetname { get; set; }
+
         //The user who initially created the Group Task
         [JsonProperty(PropertyName = "CreatedBy")]
         public string createdby { get; set; }

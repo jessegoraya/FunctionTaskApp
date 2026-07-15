@@ -8,8 +8,6 @@ using System.Threading.Tasks;
 using Taslow.Shared.Model;
 using Taslow.Task.Client.Interface;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
 
 namespace Taslow.Task.Client
 {
@@ -82,6 +80,22 @@ namespace Taslow.Task.Client
                 );
 
                 return new List<string>();
+            }
+        }
+
+        public async Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"/api/projects/active/{tenantId}");
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadFromJsonAsync<List<ProjectDTO>>() ?? new();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Error retrieving active projects. TenantId={TenantId}", tenantId);
+                return new List<ProjectDTO>();
             }
         }
 

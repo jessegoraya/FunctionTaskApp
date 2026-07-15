@@ -120,6 +120,52 @@ namespace Taslow.Tenant.Function
                 return await Json(req, HttpStatusCode.OK, result, correlationId);
             });
 
+        [Function("GetTenantMarketCodes")]
+        public Task<HttpResponseData> GetTenantMarketCodes(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "tenants/{tenantId}/market-codes")] HttpRequestData req,
+            string tenantId)
+            => ExecuteAsync(req, async (auth, correlationId) =>
+            {
+                var result = await _tenantService.GetMarketCodesAsync(tenantId, auth, req.FunctionContext.CancellationToken);
+                return await Json(req, HttpStatusCode.OK, result, correlationId);
+            });
+
+        [Function("PatchTenantMarketCodes")]
+        public Task<HttpResponseData> PatchTenantMarketCodes(
+            [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "tenants/{tenantId}/market-codes")] HttpRequestData req,
+            string tenantId)
+            => ExecuteAsync(req, async (auth, correlationId) =>
+            {
+                var request = await ReadBodyAsync<TenantMarketCodesPatchRequest>(req);
+                var ifMatch = GetHeader(req, "If-Match");
+                var result = await _tenantService.PatchMarketCodesAsync(tenantId, request, ifMatch, auth, req.FunctionContext.CancellationToken);
+                return await Json(req, HttpStatusCode.OK, result, correlationId);
+            });
+
+        [Function("GetTenantLeaderMarketCodes")]
+        public Task<HttpResponseData> GetTenantLeaderMarketCodes(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "tenants/{tenantId}/users/{userId}/leader-market-codes")] HttpRequestData req,
+            string tenantId,
+            string userId)
+            => ExecuteAsync(req, async (auth, correlationId) =>
+            {
+                var result = await _tenantService.GetLeaderMarketCodesAsync(tenantId, userId, auth, req.FunctionContext.CancellationToken);
+                return await Json(req, HttpStatusCode.OK, result, correlationId);
+            });
+
+        [Function("PatchTenantLeaderMarketCodes")]
+        public Task<HttpResponseData> PatchTenantLeaderMarketCodes(
+            [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "tenants/{tenantId}/users/{userId}/leader-market-codes")] HttpRequestData req,
+            string tenantId,
+            string userId)
+            => ExecuteAsync(req, async (auth, correlationId) =>
+            {
+                var request = await ReadBodyAsync<TenantLeaderMarketCodesPatchRequest>(req);
+                var ifMatch = GetHeader(req, "If-Match");
+                var result = await _tenantService.PatchLeaderMarketCodesAsync(tenantId, userId, request, ifMatch, auth, req.FunctionContext.CancellationToken);
+                return await Json(req, HttpStatusCode.OK, result, correlationId);
+            });
+
         private async Task<HttpResponseData> ExecuteAsync(
             HttpRequestData req,
             Func<TenantAuthContext, string, Task<HttpResponseData>> operation)

@@ -1,0 +1,7 @@
+# One accountable owner for cross-service build and contract assets.
+/.github/CODEOWNERS @jessegoraya
+/.github/workflows/ @jessegoraya
+/Directory.Packages.props @jessegoraya
+/FunctionTaskApp.sln @jessegoraya
+/Taslow.Shared/ @jessegoraya
+/SHARED_ASSET_OWNERSHIP.md @jessegoraya

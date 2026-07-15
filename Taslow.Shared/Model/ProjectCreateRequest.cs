@@ -6,22 +6,22 @@ namespace Taslow.Shared.Model
     public class ProjectCreateRequest
     {
         [JsonProperty("tenantId")]
-        public string TenantId { get; set; }
+        public string TenantId { get; set; } = string.Empty;
 
         [JsonProperty("projectName")]
-        public string ProjectName { get; set; }
+        public string ProjectName { get; set; } = string.Empty;
 
         [JsonProperty("projectDescription")]
-        public string ProjectDescription { get; set; }
+        public string ProjectDescription { get; set; } = string.Empty;
 
         [JsonProperty("projectType")]
-        public string ProjectType { get; set; }
+        public string ProjectType { get; set; } = string.Empty;
 
         [JsonProperty("projectStatus")]
-        public string ProjectStatus { get; set; }
+        public string ProjectStatus { get; set; } = string.Empty;
 
         [JsonProperty("extProjectId")]
-        public string ExtProjectId { get; set; }
+        public string ExtProjectId { get; set; } = string.Empty;
 
         [JsonProperty("members")]
         public List<string> Members { get; set; } = new();

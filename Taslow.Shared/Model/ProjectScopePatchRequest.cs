@@ -12,13 +12,13 @@ namespace Taslow.Shared.Model
     public class ProjectScopePatchItem
     {
         [JsonProperty("scopeId")]
-        public string ScopeId { get; set; }
+        public string ScopeId { get; set; } = string.Empty;
 
         [JsonProperty("projectScopeAreaTitle")]
-        public string ProjectScopeAreaTitle { get; set; }
+        public string ProjectScopeAreaTitle { get; set; } = string.Empty;
 
         [JsonProperty("projectScopeArea")]
-        public string ProjectScopeArea { get; set; }
+        public string ProjectScopeArea { get; set; } = string.Empty;
 
         [JsonProperty("projectScopeAreaEmbeddings")]
         public List<float> ProjectScopeAreaEmbeddings { get; set; } = new();

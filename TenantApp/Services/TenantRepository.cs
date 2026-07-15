@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
 using Taslow.Shared.Model;
 using Taslow.Tenant.DAL.Interface;
 using Taslow.Tenant.Model;
@@ -91,8 +92,46 @@ namespace Taslow.Tenant.DAL
             }
             catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                return (null, null);
+                return await QueryByCanonicalTenantIdAsync(tenantId, cancellationToken);
             }
+        }
+
+        private async Task<(TenantDocumentDTO? Document, string? ETag)> QueryByCanonicalTenantIdAsync(
+            string tenantId,
+            CancellationToken cancellationToken)
+        {
+            var query = new QueryDefinition(
+                    @"SELECT * FROM c
+                      WHERE c.tenant.tenant_id = @tenantId
+                         OR c.tenant.tenantId = @tenantId
+                         OR c.tenant.TenantId = @tenantId
+                         OR c.TenantID = @tenantId
+                         OR c.tenantID = @tenantId
+                         OR c.tenantId = @tenantId")
+                .WithParameter("@tenantId", tenantId);
+
+            using var iterator = _container.GetItemQueryIterator<JObject>(
+                query,
+                requestOptions: new QueryRequestOptions
+                {
+                    MaxItemCount = 1
+                });
+
+            while (iterator.HasMoreResults)
+            {
+                var page = await iterator.ReadNextAsync(cancellationToken);
+                var rawDocument = page.FirstOrDefault();
+                if (rawDocument != null)
+                {
+                    var document = rawDocument.ToObject<TenantDocumentDTO>();
+                    if (document != null)
+                    {
+                        return (document, rawDocument.Value<string>("_etag"));
+                    }
+                }
+            }
+
+            return (null, null);
         }
 
         public async Task<(TenantDocumentDTO Document, string ETag)> CreateAsync(TenantDocumentDTO document, CancellationToken cancellationToken = default)

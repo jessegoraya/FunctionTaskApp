@@ -6,9 +6,9 @@ namespace Taslow.Shared.Model
     public class ProjectScopePatchResultDTO
     {
         [JsonProperty("project")]
-        public ProjectDetailDTO Project { get; set; }
+        public ProjectDetailDTO Project { get; set; } = new();
 
         [JsonProperty("scopeSync")]
-        public ProjectScopeSyncPayload ScopeSync { get; set; }
+        public ProjectScopeSyncPayload ScopeSync { get; set; } = new();
     }
 }

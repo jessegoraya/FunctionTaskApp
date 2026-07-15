@@ -9,11 +9,17 @@ namespace Taslow.Shared.Model
     {
         public const string TaslowAdmin = "taslow_admin";
         public const string TenantAdmin = "tenant_admin";
+        public const string TenantLeader = "tenant_leader";
+        public const string TenantPm = "tenant_pm";
+        public const string TenantUser = "tenant_user";
 
         public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
         {
             TaslowAdmin,
-            TenantAdmin
+            TenantAdmin,
+            TenantLeader,
+            TenantPm,
+            TenantUser
         };
     }
 
@@ -114,6 +120,8 @@ namespace Taslow.Shared.Model
         public const string ImmutableField = "TENANT_IMMUTABLE_FIELD";
         public const string MissingIfMatch = "TENANT_IF_MATCH_REQUIRED";
         public const string DuplicateTenant = "TENANT_DUPLICATE";
+        public const string EmailIngestionDisabled = "TENANT_EMAIL_INGESTION_DISABLED";
+        public const string DuplicateEmailEvent = "TENANT_EMAIL_EVENT_DUPLICATE";
     }
 
     public class ApiErrorResponse
@@ -388,6 +396,90 @@ namespace Taslow.Shared.Model
         public List<TenantSubscriptionRegistryItemDTO>? SubscriptionRegistry { get; set; }
     }
 
+    public class TenantMarketCodeDTO
+    {
+        [JsonProperty("code")]
+        public string Code { get; set; } = string.Empty;
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonProperty("description")]
+        public string? Description { get; set; }
+
+        [JsonProperty("isActive")]
+        public bool IsActive { get; set; } = true;
+
+        [JsonProperty("displayOrder")]
+        public int DisplayOrder { get; set; }
+    }
+
+    public class TenantUserMembershipDTO
+    {
+        [JsonProperty("userId")]
+        public string UserId { get; set; } = string.Empty;
+
+        [JsonProperty("displayName")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [JsonProperty("email")]
+        public string Email { get; set; } = string.Empty;
+
+        [JsonProperty("title")]
+        public string? Title { get; set; }
+
+        [JsonProperty("isActive")]
+        public bool IsActive { get; set; } = true;
+
+        [JsonProperty("leaderMarketCodes")]
+        public List<string> LeaderMarketCodes { get; set; } = new();
+    }
+
+    public class TenantMarketCodesPatchRequest
+    {
+        [JsonProperty("marketCodes")]
+        public List<TenantMarketCodeDTO> MarketCodes { get; set; } = new();
+    }
+
+    public class TenantMarketCodesResponse
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("etag")]
+        public string ETag { get; set; } = string.Empty;
+
+        [JsonProperty("marketCodes")]
+        public List<TenantMarketCodeDTO> MarketCodes { get; set; } = new();
+    }
+
+    public class TenantLeaderMarketCodesPatchRequest
+    {
+        [JsonProperty("displayName")]
+        public string? DisplayName { get; set; }
+
+        [JsonProperty("email")]
+        public string? Email { get; set; }
+
+        [JsonProperty("title")]
+        public string? Title { get; set; }
+
+        [JsonProperty("leaderMarketCodes")]
+        public List<string> LeaderMarketCodes { get; set; } = new();
+    }
+
+    public class TenantLeaderMarketCodesResponse
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("user")]
+        public TenantUserMembershipDTO User { get; set; } = new();
+
+        [JsonProperty("etag")]
+        public string ETag { get; set; } = string.Empty;
+    }
+
     public class TenantDocumentDTO
     {
         [JsonProperty("id")]
@@ -395,6 +487,12 @@ namespace Taslow.Shared.Model
 
         [JsonProperty("schema_version")]
         public string SchemaVersion { get; set; } = "1.0.0";
+
+        [JsonProperty("market_codes")]
+        public List<TenantMarketCodeDTO> MarketCodes { get; set; } = new();
+
+        [JsonProperty("tenant_users")]
+        public List<TenantUserMembershipDTO> TenantUsers { get; set; } = new();
 
         [JsonProperty("tenant")]
         public TenantCoreDTO Tenant { get; set; } = new();
@@ -411,7 +509,7 @@ namespace Taslow.Shared.Model
         [JsonProperty("productivity_suite_email_integration")]
         public TenantEmailIntegrationPatchRequest EmailIntegration { get; set; } = new()
         {
-            Graph = new TenantGraphIntegrationDTO { Enabled = false },
+            Graph = new TenantGraphIntegrationDTO { Enabled = false, EmailIngestionEnabled = false },
             Gmail = new TenantGmailIntegrationDTO { Enabled = false },
             MailboxStates = new List<TenantMailboxStateDTO>(),
             SubscriptionRegistry = new List<TenantSubscriptionRegistryItemDTO>()
@@ -527,6 +625,9 @@ namespace Taslow.Shared.Model
     {
         [JsonProperty("enabled")]
         public bool? Enabled { get; set; }
+
+        [JsonProperty("email_ingestion_enabled")]
+        public bool? EmailIngestionEnabled { get; set; }
 
         [JsonProperty("permission_mode")]
         public string? PermissionMode { get; set; }

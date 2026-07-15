@@ -11,6 +11,6 @@ namespace Taslow.Shared.Model
         public int NoOpCount { get; set; }
 
         [JsonProperty("project")]
-        public ProjectDetailDTO Project { get; set; }
+        public ProjectDetailDTO Project { get; set; } = new();
     }
 }

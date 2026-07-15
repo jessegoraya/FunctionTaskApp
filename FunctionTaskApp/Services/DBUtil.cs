@@ -17,7 +17,6 @@ namespace Taslow.Task.DAL
         private readonly CosmosClient cosmosClient;
         private readonly Container container;
         private readonly IProjectServiceClient _projectServiceClient;
-        private object log;
         private const string DatabaseName = "bloomskyHealth";
         private const string ContainerName = "GroupTaskSet";
 
@@ -47,7 +46,7 @@ namespace Taslow.Task.DAL
                "    g.AssociatedLOBItems, " +
                "    g.GroupTaskType, " +
                "    g.GroupTaskStage, " +
-               "    g.AssignorStakeholderGroup, " +
+               "    IIF(IS_OBJECT(g.AssignorStakeholderGroup), g.AssignorStakeholderGroup.AssignorStakeholderGroup, g.AssignorStakeholderGroup) AS AssignorStakeholderGroup, " +
                "    a.AssigneeStakeholderGroup, " +
                "    g.GroupTaskNotes, " +
                "    g.FacilitiationComplete, " +
@@ -105,7 +104,7 @@ namespace Taslow.Task.DAL
              "    g.AssociatedLOBItems, " +
              "    g.GroupTaskType, " +
              "    g.GroupTaskStage, " +
-             "    g.AssignorStakeholderGroup, " +
+             "    IIF(IS_OBJECT(g.AssignorStakeholderGroup), g.AssignorStakeholderGroup.AssignorStakeholderGroup, g.AssignorStakeholderGroup), " +
              "    a.AssigneeStakeholderGroup, " +
              "    g.GroupTaskNotes, " +
              "    g.FacilitiationComplete, " +
@@ -191,6 +190,7 @@ namespace Taslow.Task.DAL
         public async Task<GroupTaskSet> InsertGroupTaskSet(GroupTaskSet item)
         {
             item.id ??= Guid.NewGuid().ToString();
+            NormalizeIndividualTaskSetNames(item.grouptask);
             //item.PartitionKey ??= item.tenantid;  // If you use a partition key other than tenantid, update this
 
             ItemResponse<GroupTaskSet> response = await container.CreateItemAsync(item, new PartitionKey(item.tenantid));
@@ -336,7 +336,8 @@ namespace Taslow.Task.DAL
                 // Generic unexpected exception
                 Console.WriteLine(
                     $"Unexpected exception in GetTasksByProjectIdsAsync. Tenant: {tenantId}, " +
-                    $"Projects: {string.Join(",", projectIds ?? new List<string>())}");
+                    $"Projects: {string.Join(",", projectIds ?? new List<string>())}, " +
+                    $"ErrorType: {ex.GetType().Name}, Message: {ex.Message}");
 
                 throw;
             }
@@ -346,11 +347,13 @@ namespace Taslow.Task.DAL
         {
             string strQuery =
                 TaskContextDTOSelectQuery() +
-                "WHERE i.AssignedPerson = @person " +
+                "WHERE c.TenantID = @tenantid " +
+                "AND (LOWER(i.AssignedPerson) = @person OR LOWER(i.AssociatedRole) = @person) " +
                 TaskContextDTOGroupBy();
 
             var query = new QueryDefinition(strQuery)
-                .WithParameter("@person", person);
+                .WithParameter("@tenantid", tenantid)
+                .WithParameter("@person", person?.Trim().ToLowerInvariant());
 
             try
             {
@@ -385,6 +388,7 @@ namespace Taslow.Task.DAL
         //replaces original UpdateGTSbyId(GroupTaskSet updatedGTS)
         public async Task<bool> UpdateGroupTaskSet(string id, string tenantid, GroupTaskSet updatedItem)
         {
+            NormalizeIndividualTaskSetNames(updatedItem.grouptask);
             try
             {
                 updatedItem.id = id;
@@ -416,6 +420,7 @@ namespace Taslow.Task.DAL
         {
             try
             {
+                new Taslow.Task.Service.SvcUtil().SetIndividualTaskSetNames(newGroupTask);
                 var patchOperations = new List<PatchOperation>
                 {
                     PatchOperation.Add("/GroupTask/-", newGroupTask) // Append to the GroupTask array
@@ -440,6 +445,7 @@ namespace Taslow.Task.DAL
         {
             try
             {
+                new Taslow.Task.Service.SvcUtil().SetIndividualTaskSetNames(updGT);
                 // Step 1: Read the document
                 var response = await container.ReadItemAsync<GroupTaskSet>(
                     id: id,
@@ -781,6 +787,14 @@ namespace Taslow.Task.DAL
                 return false;
             }
         }
+
+        private static void NormalizeIndividualTaskSetNames(IEnumerable<GroupTask> groupTasks)
+        {
+            var serviceUtil = new Taslow.Task.Service.SvcUtil();
+            foreach (var groupTask in groupTasks ?? Array.Empty<GroupTask>())
+            {
+                serviceUtil.SetIndividualTaskSetNames(groupTask);
+            }
+        }
     }
 }
-

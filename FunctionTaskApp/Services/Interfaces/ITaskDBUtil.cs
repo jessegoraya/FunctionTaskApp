@@ -36,5 +36,3 @@ public interface ITaskDBUtil
     Task<bool> MoveIndividualTaskAsync(
         string tenantid, MoveIndividualTaskDTO moveIT);
 }
-
-

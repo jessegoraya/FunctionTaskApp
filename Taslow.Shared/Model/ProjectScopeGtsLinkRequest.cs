@@ -12,12 +12,12 @@ namespace Taslow.Shared.Model
     public class ProjectScopeGtsLinkItem
     {
         [JsonProperty("scopeId")]
-        public string ScopeId { get; set; }
+        public string ScopeId { get; set; } = string.Empty;
 
         [JsonProperty("groupTaskSetId")]
-        public string GroupTaskSetId { get; set; }
+        public string GroupTaskSetId { get; set; } = string.Empty;
 
         [JsonProperty("orchestrationRunId")]
-        public string OrchestrationRunId { get; set; }
+        public string OrchestrationRunId { get; set; } = string.Empty;
     }
 }

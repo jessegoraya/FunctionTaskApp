@@ -12,50 +12,50 @@ namespace Taslow.Shared.Model
 
         //id from Project Container to link Taslow Project to Taslow GTS
         [JsonProperty(PropertyName = "ProjectID")]
-        public string projectid { get; set; }
+        public string projectid { get; set; } = string.Empty;
 
         //associated tenant using 
         [JsonProperty(PropertyName = "TenantID")]
-        public string tenantid { get; set; }
+        public string tenantid { get; set; } = string.Empty;
 
         //**Project Field: associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
-        public string id { get; set; }
+        public string id { get; set; } = string.Empty;
 
         //**Project Field:External Project ID outside of Taslow from a CRM system, Case Management system or something else from the customer, if projects aren't managed in Taslow.
         [JsonProperty(PropertyName = "ExtProjectID")]
-        public string extprojectid { get; set; }
+        public string extprojectid { get; set; } = string.Empty;
 
         //**Project Field:
         [JsonProperty(PropertyName = "ProjectName")]
-        public string projectname { get; set; }
+        public string projectname { get; set; } = string.Empty;
 
         //Description of the project
         [JsonProperty(PropertyName = "ProjectDescription")]
-        public string projectdescription { get; set; }
+        public string projectdescription { get; set; } = string.Empty;
 
         //set project type as one of 4 types: Delivery, Support, Administrative, Capture
         [JsonProperty(PropertyName = "ProjectType")]
-        public string projecttype { get; set; }
+        public string projecttype { get; set; } = string.Empty;
 
         //Status of the project
         [JsonProperty(PropertyName = "ProjectStatus")]
-        public string projectstatus { get; set; }
+        public string projectstatus { get; set; } = string.Empty;
 
         [JsonProperty(PropertyName = "GroupTaskID")]
-        public string grouptaskid { get; set; }
+        public string grouptaskid { get; set; } = string.Empty;
 
         //Short Description of Action that needs to be completed by the Assignee
         [JsonProperty(PropertyName = "GroupTaskTitle")]
-        public string grouptasktitle { get; set; }
+        public string grouptasktitle { get; set; } = string.Empty;
 
         //Longer description of Action that needs to be completed
         [JsonProperty(PropertyName = "GroupTaskDescription")]
-        public string grouptaskdescription { get; set; }
+        public string grouptaskdescription { get; set; } = string.Empty;
 
         //Describes the status of the case status as either being active or if close how was it closed
         [JsonProperty(PropertyName = "GroupTaskStatus")]
-        public string grouptaskstatus { get; set; }
+        public string grouptaskstatus { get; set; } = string.Empty;
 
         //Date the that Action that needs to be completed is due
         [JsonProperty(PropertyName = "GroupTaskDueDate")]
@@ -67,31 +67,31 @@ namespace Taslow.Shared.Model
 
         //Any documents associated to the Group Task.  The list of available documents are those that are associated to the Group Task and are accessible to either the group of the user that is viewing the Group Task
         [JsonProperty(PropertyName = "AssociatedDocuments")]
-        public List<AssoicatedDocument> assoicateddocuments { get; set; }
+        public List<AssoicatedDocument> assoicateddocuments { get; set; } = new();
 
         //An abstract concept shown to identify that depending on the Task Type the user will have different LOB items that can be selected from the drop down   This allows the user to know which items they are working on 
         [JsonProperty(PropertyName = "AssociatedLOBItems")]
-        public List<AssociatedLOBItem> assoicatedlobitems { get; set; }
+        public List<AssociatedLOBItem> assoicatedlobitems { get; set; } = new();
 
         //Value of the type of Task associated to the Group Task
         [JsonProperty(PropertyName = "GroupTaskType")]
-        public string grouptasktype { get; set; }
+        public string grouptasktype { get; set; } = string.Empty;
 
         //Identified the phase in which the Case Stage currently live within an open status as one of the following phases of Awaiting Assignment, Drafting, Reviewing, Approving.  If the Group Task status is set to the closed the stage provides the user at what stage in the lifecycle it was closed.
         [JsonProperty(PropertyName = "GroupTaskStage")]
-        public string grouptaskstage { get; set; }
+        public string grouptaskstage { get; set; } = string.Empty;
 
         //The office/group making the request for work to be completed
         [JsonProperty(PropertyName = "AssignorStakeholderGroup")]
-        public string assignorstakeholdergroup { get; set; }
+        public string assignorstakeholdergroup { get; set; } = string.Empty;
 
         //The office(s)/group(s) which will be carrying out the work. 1 for 1 with Assignor on Approve/Produce Tasks but maybe 1 to many on Send Group Tasks
         [JsonProperty(PropertyName = "AssigneeStakeholderGroup")]
-        public string assigneestakeholdergroup { get; set; }
+        public string assigneestakeholdergroup { get; set; } = string.Empty;
 
         //Additional notes for the assingee as they process the request
         [JsonProperty(PropertyName = "GroupTaskNotes")]
-        public string groupetasknotes { get; set; }
+        public string groupetasknotes { get; set; } = string.Empty;
 
         //User marks this as yes once SMEs, Reviewers & Approvers (if needed) and due dates for each are set
         [JsonProperty(PropertyName = "FacilitiationComplete")]
@@ -110,7 +110,7 @@ namespace Taslow.Shared.Model
 
         //The user who initially created the Group Task
         [JsonProperty(PropertyName = "GTCreatedBy")]
-        public string gtcreatedby { get; set; }
+        public string gtcreatedby { get; set; } = string.Empty;
 
         //Date captured by the system identifying the creation of the Group Task within the system
         [JsonProperty(PropertyName = "GTCreatedDate")]
@@ -118,7 +118,7 @@ namespace Taslow.Shared.Model
 
         //The user who last modified the Group Task
         [JsonProperty(PropertyName = "GTLastModifiedBy")]
-        public string gtlastmodifiedby { get; set; }
+        public string gtlastmodifiedby { get; set; } = string.Empty;
 
         //Date captured by the system identifying the last modified date of the Group Task instance within the system
         [JsonProperty(PropertyName = "GTLastModifiedDate")]
@@ -127,11 +127,11 @@ namespace Taslow.Shared.Model
         //Individual Task Set
         //Contains 1 or more of the individual tasks seperated by type (facilitator, sme, review, approve) 
         [JsonProperty(PropertyName = "IndividualTaskSetID")]
-        public string individualtasksetid { get; set; }
+        public string individualtasksetid { get; set; } = string.Empty;
 
         //The user who initially created the Group Task
         [JsonProperty(PropertyName = "ITSCreatedBy")]
-        public string GTcreatedby { get; set; }
+        public string GTcreatedby { get; set; } = string.Empty;
 
         //Date captured by the system identifying the creation of the Group Task within the system
         [JsonProperty(PropertyName = "ITSCreatedDate")]
@@ -139,39 +139,39 @@ namespace Taslow.Shared.Model
 
         //unique id for the individual task
         [JsonProperty(PropertyName = "IndividualTaskID")]
-        public string individualtaskid { get; set; }
+        public string individualtaskid { get; set; } = string.Empty;
 
         //Identifies where in a life cycle the task currently lies
         [JsonProperty(PropertyName = "IndividualTaskStatus")]
-        public string individualtaskstatus { get; set; }
+        public string individualtaskstatus { get; set; } = string.Empty;
 
         //Provides a description of the task which is automatically generated from the Group Task
         [JsonProperty(PropertyName = "IndividualTaskTitle")]
-        public string individualtasktitle { get; set; }
+        public string individualtasktitle { get; set; } = string.Empty;
 
         //Defines the type of task being set
         [JsonProperty(PropertyName = "IndividualTaskType")]
-        public string individualtasktype { get; set; }
+        public string individualtasktype { get; set; } = string.Empty;
 
         //Provides a description of the task which is automatically generated from the Group Task
         [JsonProperty(PropertyName = "IndividualTaskDescription")]
-        public string individualtaskdescription { get; set; }
+        public string individualtaskdescription { get; set; } = string.Empty;
 
         //Provides a place for the individual carrying out the task to add additional comments for the record
         [JsonProperty(PropertyName = "IndividualTaskNotes")]
-        public string individualtasknotes { get; set; }
+        public string individualtasknotes { get; set; } = string.Empty;
 
         //Identifies the priority level of the task
         [JsonProperty(PropertyName = "Priority")]
-        public string priority { get; set; }
+        public string priority { get; set; } = string.Empty;
 
         //array of people assigned to this task
         [JsonProperty(PropertyName = "AssignedPerson")]
-        public string assignedperson { get; set; }
+        public string assignedperson { get; set; } = string.Empty;
 
         //group associated to role of the assigned person
         [JsonProperty(PropertyName = "AssociatedRole")]
-        public string associatedrole { get; set; }
+        public string associatedrole { get; set; } = string.Empty;
 
         //Used to ensure that duplicate notifications will not be sent to users
         [JsonProperty(PropertyName = "PreviouslySent")]
@@ -191,7 +191,7 @@ namespace Taslow.Shared.Model
 
         //decision of the individual if the task type is Approval
         [JsonProperty(PropertyName = "IndividualTaskApprovalDecision")]
-        public string individualtaskapprovaldecision { get; set; }
+        public string individualtaskapprovaldecision { get; set; } = string.Empty;
 
         //date the task was actually completed
         [JsonProperty(PropertyName = "IndividualTaskCompletedDate")]
@@ -199,7 +199,7 @@ namespace Taslow.Shared.Model
 
         //The user who initially created the Group Task
         [JsonProperty(PropertyName = "ITCreatedBy")]
-        public string ITcreatedby { get; set; }
+        public string ITcreatedby { get; set; } = string.Empty;
 
         //Date captured by the system identifying the creation of the Group Task within the system
         [JsonProperty(PropertyName = "ITCreatedDate")]
@@ -219,7 +219,7 @@ namespace Taslow.Shared.Model
         public Guid lobid { get; set; }
 
         [JsonProperty(PropertyName = "LOBType")]
-        public string lobtype { get; set; }
+        public string lobtype { get; set; } = string.Empty;
     }
 
     public class GroupTaskDueDate
@@ -240,7 +240,7 @@ namespace Taslow.Shared.Model
         public Guid grouptasktypeid { get; set; }
 
         [JsonProperty(PropertyName = "GroupTaskType")]
-        public string grouptasktype { get; set; }
+        public string grouptasktype { get; set; } = string.Empty;
     }
 
     public class GroupTaskStageLOV
@@ -249,7 +249,7 @@ namespace Taslow.Shared.Model
         public Guid grouptaskstageid { get; set; }
 
         [JsonProperty(PropertyName = "GroupTaskStageVal")]
-        public string grouptaskstage { get; set; }
+        public string grouptaskstage { get; set; } = string.Empty;
     }
 
     public class AssignorStakeholderGroup
@@ -258,7 +258,7 @@ namespace Taslow.Shared.Model
         public Guid assignorstakeholdergroupid { get; set; }
 
         [JsonProperty(PropertyName = "AssignorStakeholderGroup")]
-        public string assignorstakeholdergroup { get; set; }
+        public string assignorstakeholdergroup { get; set; } = string.Empty;
     }
 
     public class AssigneeStakeholderGroup
@@ -267,7 +267,7 @@ namespace Taslow.Shared.Model
         public Guid assigneestakeholdergroupid { get; set; }
 
         [JsonProperty(PropertyName = "AssigneeStakeholderGroup")]
-        public string assigneestakeholdergroup { get; set; }
+        public string assigneestakeholdergroup { get; set; } = string.Empty;
     }
 }
 

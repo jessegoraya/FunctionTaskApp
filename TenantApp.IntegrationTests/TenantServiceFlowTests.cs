@@ -25,7 +25,7 @@ namespace TenantApp.IntegrationTests
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
 
-            var created = await service.CreateAsync(BuildCreateRequest("Acme Construction"), auth);
+            var created = await service.CreateAsync(CreateTenantRequest("Acme Construction"), auth);
 
             Assert.False(string.IsNullOrWhiteSpace(created.TenantId));
             Assert.False(string.IsNullOrWhiteSpace(created.ETag));
@@ -48,7 +48,7 @@ namespace TenantApp.IntegrationTests
             ITenantService service = new TenantService(repository, validation, authorization);
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
-            var created = await service.CreateAsync(BuildCreateRequest("Contoso"), auth);
+            var created = await service.CreateAsync(CreateTenantRequest("Contoso"), auth);
 
             await service.PatchTenantAsync(
                 created.TenantId,
@@ -68,21 +68,20 @@ namespace TenantApp.IntegrationTests
             Assert.Equal(HttpStatusCode.PreconditionFailed, ex.StatusCode);
         }
 
-        private static TenantCreateRequest BuildCreateRequest(string displayName)
+        private static TenantCreateRequest CreateTenantRequest(string displayName)
         {
             return new TenantCreateRequest
             {
                 DisplayName = displayName,
                 Provider = TenantProviders.Microsoft,
-                CompanyPocName = "Pat Manager",
-                CompanyPocTitle = "Operations Manager",
-                CompanyPocEmail = "pat.manager@example.com",
-                CompanyPocPhone = "+1 555 123 4567",
-                MailingAddressLine1 = "123 Main St",
-                MailingAddressLine2 = "Suite 200",
-                MailingCity = "Boston",
-                MailingStateProvince = "MA",
-                MailingPostalCode = "02108",
+                CompanyPocName = "Jordan Lee",
+                CompanyPocTitle = "Program Manager",
+                CompanyPocEmail = "jordan.lee@example.com",
+                CompanyPocPhone = "+1 555-0100",
+                MailingAddressLine1 = "100 Main Street",
+                MailingCity = "Arlington",
+                MailingStateProvince = "VA",
+                MailingPostalCode = "22201",
                 MailingCountryCode = "US"
             };
         }

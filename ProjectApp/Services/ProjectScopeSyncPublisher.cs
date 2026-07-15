@@ -89,7 +89,7 @@ namespace Taslow.Project.Service
                         ["ProjectScopeArea"] = scope.ProjectScopeArea,
                         ["ProjectScopeAreaEmbeddings"] = scope.ProjectScopeAreaEmbeddings ?? new List<float>(),
                         ["ProjectScopeLinkCallbackUrl"] = resolvedCallbackUrl,
-                        ["ProjectScopeLinkSecret"] = callbackSecret,
+                        ["ProjectScopeLinkSecret"] = callbackSecret ?? string.Empty,
                         ["OrchestrationRunId"] = orchestrationRunId
                     };
 

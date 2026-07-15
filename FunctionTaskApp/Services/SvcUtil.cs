@@ -26,7 +26,8 @@ namespace Taslow.Task.Service
             gt.grouptaskid = Guid.NewGuid().ToString();
             gt.createddate = DateTime.Now;
             gt.lastmodifieddate = DateTime.Now;
-            if (gt.individualtasksets.Count > 0)
+            SetIndividualTaskSetNames(gt);
+            if (gt.individualtasksets?.Count > 0)
             {
                 foreach (IndividualTaskSet its in gt.individualtasksets)
                 {
@@ -36,7 +37,7 @@ namespace Taslow.Task.Service
                         its.createddate = DateTime.Now;
                     }
 
-                    foreach (IndividualTask it in its.individualtask)
+                    foreach (IndividualTask it in its.individualtask ?? new List<IndividualTask>())
                     {
                         if (string.IsNullOrEmpty(it.individualtaskid) || it.individualtaskid == "00000000-0000-0000-0000-000000000000")
                         {
@@ -50,14 +51,31 @@ namespace Taslow.Task.Service
             return gt;
         }
 
+        public GroupTask SetIndividualTaskSetNames(GroupTask gt)
+        {
+            if (gt?.individualtasksets == null)
+            {
+                return gt;
+            }
+
+            for (var index = 0; index < gt.individualtasksets.Count; index++)
+            {
+                gt.individualtasksets[index].individualtasksetname =
+                    index == 0 ? "Initial" : "Follow-On";
+            }
+
+            return gt;
+        }
 
 
-    public IndividualTaskSet SetNewITSIDs(IndividualTaskSet its)
+
+    public IndividualTaskSet SetNewITSIDs(IndividualTaskSet its, int existingSetCount = 0)
     {
         {
             its.individualtasksetid = Guid.NewGuid().ToString();
             its.createddate = DateTime.Now;
-            foreach (IndividualTask it in its.individualtask)
+            its.individualtasksetname = existingSetCount == 0 ? "Initial" : "Follow-On";
+            foreach (IndividualTask it in its.individualtask ?? new List<IndividualTask>())
             {
                 if (it.individualtaskid == null)
                 {

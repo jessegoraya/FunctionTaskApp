@@ -10,22 +10,42 @@ namespace Taslow.Shared.Model
     public class ProjectDTO
     {
         [JsonProperty("id")]
-        public string Id { get; set; }
+        public string Id { get; set; } = string.Empty;
 
         [JsonProperty("projectName")]
-        public string ProjectName { get; set; }
+        public string ProjectName { get; set; } = string.Empty;
 
         [JsonProperty("projectDescription")]
-        public string ProjectDescription { get; set; }
+        public string ProjectDescription { get; set; } = string.Empty;
 
         [JsonProperty("projectType")]
-        public string ProjectType { get; set; }
+        public string ProjectType { get; set; } = string.Empty;
+
+        [JsonProperty("marketCode")]
+        public string MarketCode { get; set; } = string.Empty;
 
         [JsonProperty("projectStatus")]
-        public string ProjectStatus { get; set; }
+        public string ProjectStatus { get; set; } = string.Empty;
+
+        [JsonProperty("clientDomains")]
+        public List<string> ClientDomains { get; set; } = new();
 
         [JsonProperty("tenantId")]
-        public string TenantId { get; set; }
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("associatedManagers")]
+        public List<ProjectPersonDTO> AssociatedManagers { get; set; } = new();
+
+        [JsonProperty("ProjectScopes")]
+        public List<ProjectScopeDTO> ProjectScopes { get; set; } = new();
+
+        [JsonIgnore]
+        [System.Text.Json.Serialization.JsonIgnore]
+        public List<ProjectScopeDTO> Scopes
+        {
+            get => ProjectScopes;
+            set => ProjectScopes = value ?? new();
+        }
      }
 
 }
