@@ -16,13 +16,17 @@ namespace Taslow.Project.DAL.Interface
 
         Task<List<string>> GetProjectIdsForManagerAsync(string userEmail, string tenantid);
 
-        Task<List<TaskProject>> GetActiveProjectsByTenantAsync(string tenantId);
+        Task<List<ProjectDTO>> GetActiveProjectsByTenantAsync(string tenantId);
 
         Task<object> GetProjectAssociationsAsync(string tenantId, string projectId, string mode, string role);
 
         Task<Dictionary<string, ProjectDTO>> GetProjectsByIdListAsync(List<string> projectIds, string tenantId);
 
+        Task<ProjectAgentContextResponse> GetProjectAgentContextBatchAsync(ProjectAgentContextRequest request);
 
+        Task<bool> UpdateProjectClientDomainsAsync(ProjectClientDomainsPatchRequest request);
+
+        Task<ProjectScopeLinkResponse> LinkProjectScopeGroupTaskSetsAsync(ProjectScopeLinkRequest request);
 
     }
 }

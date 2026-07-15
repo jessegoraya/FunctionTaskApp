@@ -3,6 +3,10 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# Azure Functions local settings and Codex refresh backups
+**/local.settings.json
+**/local.settings.json.*.bak
+
 # User-specific files
 *.rsuser
 *.suo

@@ -13,5 +13,9 @@ namespace Taslow.Tenant.Service.Interface
         Task<TenantDetailResponse> PatchAdministrationAsync(string tenantId, TenantAdministrationPatchRequest request, string ifMatch, TenantAuthContext auth, CancellationToken cancellationToken = default);
         Task<TenantDetailResponse> PatchIdentityAsync(string tenantId, TenantIdentityPatchRequest request, string ifMatch, TenantAuthContext auth, CancellationToken cancellationToken = default);
         Task<TenantDetailResponse> PatchEmailIntegrationAsync(string tenantId, TenantEmailIntegrationPatchRequest request, string ifMatch, TenantAuthContext auth, CancellationToken cancellationToken = default);
+        Task<TenantMarketCodesResponse> GetMarketCodesAsync(string tenantId, TenantAuthContext auth, CancellationToken cancellationToken = default);
+        Task<TenantMarketCodesResponse> PatchMarketCodesAsync(string tenantId, TenantMarketCodesPatchRequest request, string ifMatch, TenantAuthContext auth, CancellationToken cancellationToken = default);
+        Task<TenantLeaderMarketCodesResponse> GetLeaderMarketCodesAsync(string tenantId, string userId, TenantAuthContext auth, CancellationToken cancellationToken = default);
+        Task<TenantLeaderMarketCodesResponse> PatchLeaderMarketCodesAsync(string tenantId, string userId, TenantLeaderMarketCodesPatchRequest request, string ifMatch, TenantAuthContext auth, CancellationToken cancellationToken = default);
     }
 }

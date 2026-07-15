@@ -16,9 +16,18 @@ namespace Taslow.Task.Model
         [JsonProperty(PropertyName = "ProjectID")]
         public string caseid { get; set; }
 
+        [JsonProperty(PropertyName = "ProjectScopeArea")]
+        public string projectscopearea { get; set; }
+
+        [JsonProperty(PropertyName = "ProjectScopeAreaEmbeddings")]
+        public List<float> projectscopeareaembeddings { get; set; } = new();
+
         //associated tenant using 
         [JsonProperty(PropertyName = "TenantID")]
         public string tenantid { get; set; }
+
+        [JsonProperty(PropertyName = "IsArchived")]
+        public bool isarchived { get; set; }
 
         //associated documentid that is used by Cosmos DB to uniquely identify a document in the DB
         [JsonProperty(PropertyName = "id")]
@@ -124,6 +133,9 @@ namespace Taslow.Task.Model
         //Contains 1 or more of the individual tasks seperated by type (facilitator, sme, review, approve) 
         [JsonProperty(PropertyName = "IndividualTaskSetID")]
         public string individualtasksetid { get; set; }
+
+        [JsonProperty(PropertyName = "IndividualTaskSetName")]
+        public string individualtasksetname { get; set; }
 
         //The user who initially created the Group Task
         [JsonProperty(PropertyName = "CreatedBy")]

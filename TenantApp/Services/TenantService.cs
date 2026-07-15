@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Mail;
 using Taslow.Shared.Model;
 using Taslow.Tenant.DAL.Interface;
 using Taslow.Tenant.Model;
@@ -79,6 +80,18 @@ namespace Taslow.Tenant.Service
                     Status = status,
                     DisplayName = request.DisplayName.Trim(),
                     LegalName = request.LegalName?.Trim(),
+                    CompanyPocName = request.CompanyPocName.Trim(),
+                    CompanyPocTitle = request.CompanyPocTitle.Trim(),
+                    CompanyPocEmail = request.CompanyPocEmail.Trim(),
+                    CompanyPocPhone = request.CompanyPocPhone.Trim(),
+                    MailingAddressLine1 = request.MailingAddressLine1.Trim(),
+                    MailingAddressLine2 = string.IsNullOrWhiteSpace(request.MailingAddressLine2)
+                        ? null
+                        : request.MailingAddressLine2.Trim(),
+                    MailingCity = request.MailingCity.Trim(),
+                    MailingStateProvince = request.MailingStateProvince.Trim(),
+                    MailingPostalCode = request.MailingPostalCode.Trim(),
+                    MailingCountryCode = request.MailingCountryCode.Trim().ToUpperInvariant(),
                     CreatedAt = now,
                     UpdatedAt = now,
                     EntitlementsJson = new Dictionary<string, object>()
@@ -99,7 +112,7 @@ namespace Taslow.Tenant.Service
                 Identity = request.Identity ?? new TenantIdentityPatchRequest(),
                 EmailIntegration = request.EmailIntegration ?? new TenantEmailIntegrationPatchRequest
                 {
-                    Graph = new TenantGraphIntegrationDTO { Enabled = false },
+                    Graph = new TenantGraphIntegrationDTO { Enabled = false, EmailIngestionEnabled = false },
                     Gmail = new TenantGmailIntegrationDTO { Enabled = false },
                     MailboxStates = new List<TenantMailboxStateDTO>(),
                     SubscriptionRegistry = new List<TenantSubscriptionRegistryItemDTO>()
@@ -156,6 +169,58 @@ namespace Taslow.Tenant.Service
                 if (request.EntitlementsJson != null)
                 {
                     document.Tenant.EntitlementsJson = request.EntitlementsJson;
+                }
+
+                if (request.CompanyPocName != null)
+                {
+                    document.Tenant.CompanyPocName = request.CompanyPocName.Trim();
+                }
+
+                if (request.CompanyPocTitle != null)
+                {
+                    document.Tenant.CompanyPocTitle = request.CompanyPocTitle.Trim();
+                }
+
+                if (request.CompanyPocEmail != null)
+                {
+                    document.Tenant.CompanyPocEmail = request.CompanyPocEmail.Trim();
+                }
+
+                if (request.CompanyPocPhone != null)
+                {
+                    document.Tenant.CompanyPocPhone = request.CompanyPocPhone.Trim();
+                }
+
+                if (request.MailingAddressLine1 != null)
+                {
+                    document.Tenant.MailingAddressLine1 = request.MailingAddressLine1.Trim();
+                }
+
+                if (request.MailingAddressLine2 != null)
+                {
+                    document.Tenant.MailingAddressLine2 = string.IsNullOrWhiteSpace(request.MailingAddressLine2)
+                        ? null
+                        : request.MailingAddressLine2.Trim();
+                }
+
+                if (request.MailingCity != null)
+                {
+                    document.Tenant.MailingCity = request.MailingCity.Trim();
+                }
+
+                if (request.MailingStateProvince != null)
+                {
+                    document.Tenant.MailingStateProvince = request.MailingStateProvince.Trim();
+                }
+
+                if (request.MailingPostalCode != null)
+                {
+                    document.Tenant.MailingPostalCode = request.MailingPostalCode.Trim();
+                }
+
+                if (request.MailingCountryCode != null)
+                {
+                    document.Tenant.MailingCountryCode = request.MailingCountryCode.Trim().ToUpperInvariant();
                 }
             }, cancellationToken);
         }
@@ -256,6 +321,264 @@ namespace Taslow.Tenant.Service
                     document.EmailIntegration.SubscriptionRegistry = request.SubscriptionRegistry;
                 }
             }, cancellationToken);
+        }
+
+        public async Task<TenantMarketCodesResponse> GetMarketCodesAsync(
+            string tenantId,
+            TenantAuthContext auth,
+            CancellationToken cancellationToken = default)
+        {
+            _authorization.EnsureCanReadMarketCodes(auth, tenantId);
+            var (document, eTag) = await RequireTenantAsync(tenantId, cancellationToken);
+
+            var canManage = auth.Roles.Any(role =>
+                    role.Equals(TenantRoles.TaslowAdmin, StringComparison.OrdinalIgnoreCase)
+                    || role.Equals(TenantRoles.TenantAdmin, StringComparison.OrdinalIgnoreCase))
+                || auth.Role.Equals(TenantRoles.TaslowAdmin, StringComparison.OrdinalIgnoreCase)
+                || auth.Role.Equals(TenantRoles.TenantAdmin, StringComparison.OrdinalIgnoreCase);
+
+            var marketCodes = (document.MarketCodes ?? new List<TenantMarketCodeDTO>())
+                .Where(item => canManage || item.IsActive)
+                .OrderBy(item => item.DisplayOrder)
+                .ThenBy(item => item.Name)
+                .ToList();
+
+            return new TenantMarketCodesResponse
+            {
+                TenantId = tenantId,
+                ETag = eTag,
+                MarketCodes = marketCodes
+            };
+        }
+
+        public async Task<TenantMarketCodesResponse> PatchMarketCodesAsync(
+            string tenantId,
+            TenantMarketCodesPatchRequest request,
+            string ifMatch,
+            TenantAuthContext auth,
+            CancellationToken cancellationToken = default)
+        {
+            _authorization.EnsureCanManageMarketCodes(auth, tenantId);
+            _validation.ValidateIfMatch(ifMatch);
+
+            var normalized = (request?.MarketCodes ?? new List<TenantMarketCodeDTO>())
+                .Select(item => new TenantMarketCodeDTO
+                {
+                    Code = NormalizeMarketCode(item.Code),
+                    Name = item.Name?.Trim() ?? string.Empty,
+                    Description = string.IsNullOrWhiteSpace(item.Description) ? null : item.Description.Trim(),
+                    IsActive = item.IsActive,
+                    DisplayOrder = item.DisplayOrder
+                })
+                .ToList();
+
+            if (normalized.Any(item => string.IsNullOrWhiteSpace(item.Code) || string.IsNullOrWhiteSpace(item.Name)))
+            {
+                throw new TenantApiException(HttpStatusCode.UnprocessableEntity, TenantErrorCodes.BadRequest, "Market Code and name are required.");
+            }
+
+            if (normalized.GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+            {
+                throw new TenantApiException(HttpStatusCode.UnprocessableEntity, TenantErrorCodes.BadRequest, "Market Codes must be unique within the tenant.");
+            }
+
+            var (document, _) = await RequireTenantAsync(tenantId, cancellationToken);
+            var existingCodes = (document.MarketCodes ?? new List<TenantMarketCodeDTO>())
+                .Select(item => item.Code)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .ToList();
+            var removedCode = existingCodes.FirstOrDefault(code =>
+                !normalized.Any(item => item.Code.Equals(code, StringComparison.OrdinalIgnoreCase)));
+            if (!string.IsNullOrWhiteSpace(removedCode))
+            {
+                throw new TenantApiException(
+                    HttpStatusCode.Conflict,
+                    TenantErrorCodes.ImmutableField,
+                    $"Market Code {removedCode} cannot be deleted. Deactivate it instead.");
+            }
+
+            document.MarketCodes = normalized;
+            document.SchemaVersion = "1.1.0";
+            document.Tenant.UpdatedAt = DateTime.UtcNow.ToString("O");
+            var (updated, eTag) = await _repository.ReplaceAsync(document, ifMatch, cancellationToken);
+
+            return new TenantMarketCodesResponse
+            {
+                TenantId = tenantId,
+                ETag = eTag,
+                MarketCodes = updated.MarketCodes
+                    .OrderBy(item => item.DisplayOrder)
+                    .ThenBy(item => item.Name)
+                    .ToList()
+            };
+        }
+
+        public async Task<TenantLeaderMarketCodesResponse> GetLeaderMarketCodesAsync(
+            string tenantId,
+            string userId,
+            TenantAuthContext auth,
+            CancellationToken cancellationToken = default)
+        {
+            var (document, eTag) = await RequireTenantAsync(tenantId, cancellationToken);
+            var user = FindTenantUser(document, userId);
+            if (user == null)
+            {
+                throw new TenantApiException(HttpStatusCode.NotFound, TenantErrorCodes.NotFound, "Tenant user not found.");
+            }
+
+            var isSelf = !string.IsNullOrWhiteSpace(auth.Email)
+                && auth.Email.Equals(user.Email, StringComparison.OrdinalIgnoreCase)
+                && tenantId.Equals(auth.TenantId, StringComparison.OrdinalIgnoreCase);
+            if (!isSelf)
+            {
+                _authorization.EnsureCanManageMarketCodes(auth, tenantId);
+            }
+
+            return new TenantLeaderMarketCodesResponse
+            {
+                TenantId = tenantId,
+                ETag = eTag,
+                User = user
+            };
+        }
+
+        public async Task<TenantLeaderMarketCodesResponse> PatchLeaderMarketCodesAsync(
+            string tenantId,
+            string userId,
+            TenantLeaderMarketCodesPatchRequest request,
+            string ifMatch,
+            TenantAuthContext auth,
+            CancellationToken cancellationToken = default)
+        {
+            _authorization.EnsureCanManageMarketCodes(auth, tenantId);
+            _validation.ValidateIfMatch(ifMatch);
+
+            var (document, _) = await RequireTenantAsync(tenantId, cancellationToken);
+            document.TenantUsers ??= new List<TenantUserMembershipDTO>();
+
+            var codes = (request?.LeaderMarketCodes ?? new List<string>())
+                .Select(NormalizeMarketCode)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(code => code)
+                .ToList();
+
+            var currentUser = FindTenantUser(document, userId);
+            var currentCodes = currentUser?.LeaderMarketCodes ?? new List<string>();
+            var allowedCodes = (document.MarketCodes ?? new List<TenantMarketCodeDTO>())
+                .Where(item => item.IsActive || currentCodes.Contains(item.Code, StringComparer.OrdinalIgnoreCase))
+                .Select(item => item.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var invalidCode = codes.FirstOrDefault(code => !allowedCodes.Contains(code));
+            if (!string.IsNullOrWhiteSpace(invalidCode))
+            {
+                throw new TenantApiException(
+                    HttpStatusCode.UnprocessableEntity,
+                    TenantErrorCodes.BadRequest,
+                    $"Market Code {invalidCode} is not active for this tenant.");
+            }
+
+            if (currentUser == null)
+            {
+                if (string.IsNullOrWhiteSpace(request?.Email) || string.IsNullOrWhiteSpace(request.DisplayName))
+                {
+                    throw new TenantApiException(
+                        HttpStatusCode.UnprocessableEntity,
+                        TenantErrorCodes.BadRequest,
+                        "displayName and email are required when creating an explicit tenant leader.");
+                }
+
+                ValidateEmail(request.Email);
+                currentUser = new TenantUserMembershipDTO
+                {
+                    UserId = userId.Trim(),
+                    DisplayName = request.DisplayName.Trim(),
+                    Email = request.Email.Trim().ToLowerInvariant(),
+                    Title = string.IsNullOrWhiteSpace(request.Title) ? null : request.Title.Trim(),
+                    IsActive = true
+                };
+                document.TenantUsers.Add(currentUser);
+            }
+            else
+            {
+                if (!string.IsNullOrWhiteSpace(request?.DisplayName))
+                {
+                    currentUser.DisplayName = request.DisplayName.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(request?.Email))
+                {
+                    ValidateEmail(request.Email);
+                    currentUser.Email = request.Email.Trim().ToLowerInvariant();
+                }
+
+                if (request?.Title != null)
+                {
+                    currentUser.Title = string.IsNullOrWhiteSpace(request.Title) ? null : request.Title.Trim();
+                }
+            }
+
+            currentUser.LeaderMarketCodes = codes;
+            currentUser.IsActive = true;
+            document.SchemaVersion = "1.1.0";
+            document.Tenant.UpdatedAt = DateTime.UtcNow.ToString("O");
+            var (updated, eTag) = await _repository.ReplaceAsync(document, ifMatch, cancellationToken);
+
+            return new TenantLeaderMarketCodesResponse
+            {
+                TenantId = tenantId,
+                ETag = eTag,
+                User = FindTenantUser(updated, userId) ?? currentUser
+            };
+        }
+
+        private async Task<(TenantDocumentDTO Document, string ETag)> RequireTenantAsync(
+            string tenantId,
+            CancellationToken cancellationToken)
+        {
+            var (document, eTag) = await _repository.GetByIdAsync(tenantId, cancellationToken);
+            if (document == null || string.IsNullOrWhiteSpace(eTag))
+            {
+                throw new TenantApiException(HttpStatusCode.NotFound, TenantErrorCodes.NotFound, "Tenant not found.");
+            }
+
+            document.MarketCodes ??= new List<TenantMarketCodeDTO>();
+            document.TenantUsers ??= new List<TenantUserMembershipDTO>();
+            return (document, eTag);
+        }
+
+        private static TenantUserMembershipDTO? FindTenantUser(TenantDocumentDTO document, string userId)
+        {
+            var normalized = userId?.Trim() ?? string.Empty;
+            return (document.TenantUsers ?? new List<TenantUserMembershipDTO>()).FirstOrDefault(user =>
+                user.UserId.Equals(normalized, StringComparison.OrdinalIgnoreCase)
+                || user.Email.Equals(normalized, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string NormalizeMarketCode(string? value)
+        {
+            var normalized = (value ?? string.Empty).Trim().ToUpperInvariant();
+            if (normalized.Any(character => !char.IsLetterOrDigit(character) && character != '-' && character != '_'))
+            {
+                throw new TenantApiException(
+                    HttpStatusCode.UnprocessableEntity,
+                    TenantErrorCodes.BadRequest,
+                    $"Invalid Market Code: {value}.");
+            }
+
+            return normalized;
+        }
+
+        private static void ValidateEmail(string email)
+        {
+            try
+            {
+                _ = new MailAddress(email);
+            }
+            catch
+            {
+                throw new TenantApiException(HttpStatusCode.UnprocessableEntity, TenantErrorCodes.BadRequest, "Tenant user email is invalid.");
+            }
         }
 
         private async Task<TenantDetailResponse> UpdateDocumentAsync(

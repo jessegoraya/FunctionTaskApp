@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "TenantApp": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\jgora\\AppData\\Local\\AzureFunctionsTools\\Releases\\4.125.0-inprocess\\cli_x64\\func.exe",
+      "workingDirectory": "$(ProjectDir)",
+      "commandLineArgs": "start --port 7074 --verbose --pause-on-error",
+      "launchBrowser": false
+    }
+  }
+}

@@ -8,9 +8,11 @@ using Taslow.Shared.Model;
 namespace Taslow.Task.Client.Interface;
     public interface IProjectServiceClient
 {
-    Task<Dictionary<string, ProjectDTO>> GetProjectsAsync(
+    Task<List<ProjectDTO>> GetProjectsAsync(
         List<string> projectIds,
         string tenantId);
+
+    Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId);
 
     Task<List<string>> GetProjectIdsForManagerAsync(string tenantId, string manager);
 }

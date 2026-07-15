@@ -9,11 +9,17 @@ namespace Taslow.Shared.Model
     {
         public const string TaslowAdmin = "taslow_admin";
         public const string TenantAdmin = "tenant_admin";
+        public const string TenantLeader = "tenant_leader";
+        public const string TenantPm = "tenant_pm";
+        public const string TenantUser = "tenant_user";
 
         public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
         {
             TaslowAdmin,
-            TenantAdmin
+            TenantAdmin,
+            TenantLeader,
+            TenantPm,
+            TenantUser
         };
     }
 
@@ -114,6 +120,8 @@ namespace Taslow.Shared.Model
         public const string ImmutableField = "TENANT_IMMUTABLE_FIELD";
         public const string MissingIfMatch = "TENANT_IF_MATCH_REQUIRED";
         public const string DuplicateTenant = "TENANT_DUPLICATE";
+        public const string EmailIngestionDisabled = "TENANT_EMAIL_INGESTION_DISABLED";
+        public const string DuplicateEmailEvent = "TENANT_EMAIL_EVENT_DUPLICATE";
     }
 
     public class ApiErrorResponse
@@ -194,6 +202,64 @@ namespace Taslow.Shared.Model
         [JsonProperty("provider")]
         public string? Provider { get; set; }
 
+        [JsonProperty("company_poc_name")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(120)]
+        public string CompanyPocName { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_title")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(120)]
+        public string CompanyPocTitle { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_email")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(254)]
+        public string CompanyPocEmail { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_phone")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(32)]
+        public string CompanyPocPhone { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line1")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(120)]
+        public string MailingAddressLine1 { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line2")]
+        [MaxLength(120)]
+        public string? MailingAddressLine2 { get; set; }
+
+        [JsonProperty("mailing_city")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(80)]
+        public string MailingCity { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_state_province")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(80)]
+        public string MailingStateProvince { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_postal_code")]
+        [Required]
+        [MinLength(1)]
+        [MaxLength(20)]
+        public string MailingPostalCode { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_country_code")]
+        [Required]
+        [MinLength(2)]
+        [MaxLength(2)]
+        public string MailingCountryCode { get; set; } = string.Empty;
+
         [JsonProperty("billing")]
         public TenantBillingPatchRequest? Billing { get; set; }
 
@@ -219,6 +285,46 @@ namespace Taslow.Shared.Model
 
         [JsonProperty("status")]
         public string? Status { get; set; }
+
+        [JsonProperty("company_poc_name")]
+        [MaxLength(120)]
+        public string? CompanyPocName { get; set; }
+
+        [JsonProperty("company_poc_title")]
+        [MaxLength(120)]
+        public string? CompanyPocTitle { get; set; }
+
+        [JsonProperty("company_poc_email")]
+        [MaxLength(254)]
+        public string? CompanyPocEmail { get; set; }
+
+        [JsonProperty("company_poc_phone")]
+        [MaxLength(32)]
+        public string? CompanyPocPhone { get; set; }
+
+        [JsonProperty("mailing_address_line1")]
+        [MaxLength(120)]
+        public string? MailingAddressLine1 { get; set; }
+
+        [JsonProperty("mailing_address_line2")]
+        [MaxLength(120)]
+        public string? MailingAddressLine2 { get; set; }
+
+        [JsonProperty("mailing_city")]
+        [MaxLength(80)]
+        public string? MailingCity { get; set; }
+
+        [JsonProperty("mailing_state_province")]
+        [MaxLength(80)]
+        public string? MailingStateProvince { get; set; }
+
+        [JsonProperty("mailing_postal_code")]
+        [MaxLength(20)]
+        public string? MailingPostalCode { get; set; }
+
+        [JsonProperty("mailing_country_code")]
+        [MaxLength(2)]
+        public string? MailingCountryCode { get; set; }
 
         [JsonProperty("entitlements_json")]
         public Dictionary<string, object>? EntitlementsJson { get; set; }
@@ -290,6 +396,90 @@ namespace Taslow.Shared.Model
         public List<TenantSubscriptionRegistryItemDTO>? SubscriptionRegistry { get; set; }
     }
 
+    public class TenantMarketCodeDTO
+    {
+        [JsonProperty("code")]
+        public string Code { get; set; } = string.Empty;
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonProperty("description")]
+        public string? Description { get; set; }
+
+        [JsonProperty("isActive")]
+        public bool IsActive { get; set; } = true;
+
+        [JsonProperty("displayOrder")]
+        public int DisplayOrder { get; set; }
+    }
+
+    public class TenantUserMembershipDTO
+    {
+        [JsonProperty("userId")]
+        public string UserId { get; set; } = string.Empty;
+
+        [JsonProperty("displayName")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [JsonProperty("email")]
+        public string Email { get; set; } = string.Empty;
+
+        [JsonProperty("title")]
+        public string? Title { get; set; }
+
+        [JsonProperty("isActive")]
+        public bool IsActive { get; set; } = true;
+
+        [JsonProperty("leaderMarketCodes")]
+        public List<string> LeaderMarketCodes { get; set; } = new();
+    }
+
+    public class TenantMarketCodesPatchRequest
+    {
+        [JsonProperty("marketCodes")]
+        public List<TenantMarketCodeDTO> MarketCodes { get; set; } = new();
+    }
+
+    public class TenantMarketCodesResponse
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("etag")]
+        public string ETag { get; set; } = string.Empty;
+
+        [JsonProperty("marketCodes")]
+        public List<TenantMarketCodeDTO> MarketCodes { get; set; } = new();
+    }
+
+    public class TenantLeaderMarketCodesPatchRequest
+    {
+        [JsonProperty("displayName")]
+        public string? DisplayName { get; set; }
+
+        [JsonProperty("email")]
+        public string? Email { get; set; }
+
+        [JsonProperty("title")]
+        public string? Title { get; set; }
+
+        [JsonProperty("leaderMarketCodes")]
+        public List<string> LeaderMarketCodes { get; set; } = new();
+    }
+
+    public class TenantLeaderMarketCodesResponse
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("user")]
+        public TenantUserMembershipDTO User { get; set; } = new();
+
+        [JsonProperty("etag")]
+        public string ETag { get; set; } = string.Empty;
+    }
+
     public class TenantDocumentDTO
     {
         [JsonProperty("id")]
@@ -297,6 +487,12 @@ namespace Taslow.Shared.Model
 
         [JsonProperty("schema_version")]
         public string SchemaVersion { get; set; } = "1.0.0";
+
+        [JsonProperty("market_codes")]
+        public List<TenantMarketCodeDTO> MarketCodes { get; set; } = new();
+
+        [JsonProperty("tenant_users")]
+        public List<TenantUserMembershipDTO> TenantUsers { get; set; } = new();
 
         [JsonProperty("tenant")]
         public TenantCoreDTO Tenant { get; set; } = new();
@@ -313,7 +509,7 @@ namespace Taslow.Shared.Model
         [JsonProperty("productivity_suite_email_integration")]
         public TenantEmailIntegrationPatchRequest EmailIntegration { get; set; } = new()
         {
-            Graph = new TenantGraphIntegrationDTO { Enabled = false },
+            Graph = new TenantGraphIntegrationDTO { Enabled = false, EmailIngestionEnabled = false },
             Gmail = new TenantGmailIntegrationDTO { Enabled = false },
             MailboxStates = new List<TenantMailboxStateDTO>(),
             SubscriptionRegistry = new List<TenantSubscriptionRegistryItemDTO>()
@@ -333,6 +529,36 @@ namespace Taslow.Shared.Model
 
         [JsonProperty("legal_name")]
         public string? LegalName { get; set; }
+
+        [JsonProperty("company_poc_name")]
+        public string CompanyPocName { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_title")]
+        public string CompanyPocTitle { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_email")]
+        public string CompanyPocEmail { get; set; } = string.Empty;
+
+        [JsonProperty("company_poc_phone")]
+        public string CompanyPocPhone { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line1")]
+        public string MailingAddressLine1 { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_address_line2")]
+        public string? MailingAddressLine2 { get; set; }
+
+        [JsonProperty("mailing_city")]
+        public string MailingCity { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_state_province")]
+        public string MailingStateProvince { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_postal_code")]
+        public string MailingPostalCode { get; set; } = string.Empty;
+
+        [JsonProperty("mailing_country_code")]
+        public string MailingCountryCode { get; set; } = string.Empty;
 
         [JsonProperty("created_at")]
         public string CreatedAt { get; set; } = string.Empty;
@@ -399,6 +625,9 @@ namespace Taslow.Shared.Model
     {
         [JsonProperty("enabled")]
         public bool? Enabled { get; set; }
+
+        [JsonProperty("email_ingestion_enabled")]
+        public bool? EmailIngestionEnabled { get; set; }
 
         [JsonProperty("permission_mode")]
         public string? PermissionMode { get; set; }

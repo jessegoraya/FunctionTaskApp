@@ -8,5 +8,7 @@ namespace Taslow.Tenant.Service.Interface
         void EnsureCanList(TenantAuthContext auth);
         void EnsureCanCreate(TenantAuthContext auth);
         void EnsureCanReadOrUpdateTenant(TenantAuthContext auth, string tenantId);
+        void EnsureCanReadMarketCodes(TenantAuthContext auth, string tenantId);
+        void EnsureCanManageMarketCodes(TenantAuthContext auth, string tenantId);
     }
 }

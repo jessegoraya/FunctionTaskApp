@@ -1,0 +1,50 @@
+[
+  {
+    "functionName": "CreateProject",
+    "route": "CreateProject",
+    "authorizationLevel": "Function",
+    "methods": ["get", "post"]
+  },
+  {
+    "functionName": "GetActiveProjectsByTenant",
+    "route": "projects/active/{tenantId}",
+    "authorizationLevel": "Function",
+    "methods": ["get"]
+  },
+  {
+    "functionName": "GetProjectAgentContextBatch",
+    "route": "internal/projects/agent-context/batch",
+    "authorizationLevel": "Function",
+    "methods": ["post"]
+  },
+  {
+    "functionName": "GetProjectAssociations",
+    "route": "projects/{tenantId}/{projectId}/associations",
+    "authorizationLevel": "Function",
+    "methods": ["get"]
+  },
+  {
+    "functionName": "GetProjectIdsForManager",
+    "route": "projects/managed/{tenantId}/{manager}",
+    "authorizationLevel": "Function",
+    "methods": ["get"]
+  },
+  {
+    "functionName": "GetProjectsBatch",
+    "route": "projects/batch",
+    "authorizationLevel": "Function",
+    "methods": ["post"]
+  },
+  {
+    "functionName": "LinkProjectScopeGroupTaskSets",
+    "route": "projects/{tenantId}/{projectId}/scopes/link-gts",
+    "authorizationLevel": "Anonymous",
+    "methods": ["patch"]
+  },
+  {
+    "functionName": "PatchProjectClientDomains",
+    "route": "internal/projects/client-domains",
+    "authorizationLevel": "Function",
+    "methods": ["patch"]
+  }
+]

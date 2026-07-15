@@ -1,0 +1,134 @@
+name: function-services-ci-$(Date:yyyyMMdd).$(Rev:r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+
+  - task: UseDotNet@2
+    displayName: Use SDK from global.json
+    inputs:
+      packageType: sdk
+      useGlobalJson: true
+      workingDirectory: $(Build.SourcesDirectory)
+
+  - script: dotnet restore FunctionTaskApp.sln
+    displayName: Restore .NET solution
+
+  - script: dotnet build FunctionTaskApp.sln --configuration Release --no-restore -warnaserror
+    displayName: Build isolated Functions with warnings as errors
+
+  - script: >-
+      dotnet test FunctionTaskApp.sln
+      --configuration Release
+      --no-build
+      --logger "trx;LogFilePrefix=component"
+      --collect "XPlat Code Coverage"
+    displayName: Run unit, integration, and characterization tests
+
+  - pwsh: |
+      $output = dotnet list FunctionTaskApp.sln package --vulnerable --include-transitive 2>&1
+      $output | Write-Host
+      if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -match "has the following vulnerable packages") {
+        throw "NuGet vulnerability audit failed."
+      }
+    displayName: Audit NuGet dependencies
+
+  - task: PublishTestResults@2
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: '**/TestResults/*.trx'
+      testRunTitle: Taslow Function services
+      failTaskOnFailedTests: true
+
+  - task: PublishCodeCoverageResults@2
+    condition: succeededOrFailed()
+    inputs:
+      summaryFileLocation: '$(Build.SourcesDirectory)/**/coverage.cobertura.xml'
+
+  - pwsh: |
+      $projects = [ordered]@{
+        FunctionTaskApp = "FunctionTaskApp/FunctionTaskApp.csproj"
+        FunctionProjectApp = "ProjectApp/ProjectApp.csproj"
+        FunctionTenantApp = "TenantApp/TenantApp.csproj"
+      }
+      foreach ($entry in $projects.GetEnumerator()) {
+        $output = "$(Build.ArtifactStagingDirectory)/publish/$($entry.Key)"
+        dotnet publish $entry.Value --configuration Release --no-build --output $output
+        if ($LASTEXITCODE -ne 0) { throw "Publish failed for $($entry.Key)." }
+      }
+    displayName: Publish Function application folders
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+  - task: ArchiveFiles@2
+    displayName: Archive Task Function
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    inputs:
+      rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/publish/FunctionTaskApp'
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: '$(Build.ArtifactStagingDirectory)/artifacts/FunctionTaskApp.zip'
+      replaceExistingArchive: true
+
+  - task: ArchiveFiles@2
+    displayName: Archive Project Function
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    inputs:
+      rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/publish/FunctionProjectApp'
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: '$(Build.ArtifactStagingDirectory)/artifacts/FunctionProjectApp.zip'
+      replaceExistingArchive: true
+
+  - task: ArchiveFiles@2
+    displayName: Archive Tenant Function
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    inputs:
+      rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/publish/FunctionTenantApp'
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: '$(Build.ArtifactStagingDirectory)/artifacts/FunctionTenantApp.zip'
+      replaceExistingArchive: true
+
+  - pwsh: |
+      $artifactDirectory = "$(Build.ArtifactStagingDirectory)/artifacts"
+      Copy-Item RELEASE_NOTES.md $artifactDirectory
+      $files = Get-ChildItem $artifactDirectory -File -Filter *.zip | ForEach-Object {
+        [ordered]@{
+          name = $_.Name
+          sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          sizeBytes = $_.Length
+        }
+      }
+      [ordered]@{
+        schemaVersion = "1.0"
+        component = "FunctionTaskApp"
+        repository = "jessegoraya/FunctionTaskApp"
+        sourceCommit = "$(Build.SourceVersion)"
+        buildId = "$(Build.BuildId)"
+        files = @($files)
+      } | ConvertTo-Json -Depth 6 | Set-Content "$artifactDirectory/artifact-manifest.json"
+    displayName: Generate immutable Function artifact manifest
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+  - task: PublishPipelineArtifact@1
+    displayName: Publish immutable Function artifacts
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/artifacts'
+      artifact: function-services

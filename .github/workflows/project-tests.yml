@@ -1,0 +1,39 @@
+name: Project App Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "ProjectApp/**"
+      - "ProjectApp.Tests/**"
+      - "ProjectApp.IntegrationTests/**"
+      - "ProjectApp.CharacterizationTests/**"
+      - "Taslow.Shared/**"
+      - "Directory.Packages.props"
+      - "FunctionTaskApp.sln"
+      - ".github/workflows/project-tests.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore solution
+        run: dotnet restore FunctionTaskApp.sln
+      - name: Build solution
+        run: dotnet build FunctionTaskApp.sln --configuration Release --no-restore
+      - name: Test solution
+        run: dotnet test FunctionTaskApp.sln --configuration Release --no-build --logger "trx;LogFilePrefix=tests" --collect "XPlat Code Coverage"
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-test-results
+          path: "**/TestResults/**"
+          if-no-files-found: error

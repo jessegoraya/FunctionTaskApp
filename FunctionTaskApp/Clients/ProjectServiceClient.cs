@@ -8,8 +8,6 @@ using System.Threading.Tasks;
 using Taslow.Shared.Model;
 using Taslow.Task.Client.Interface;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
 
 namespace Taslow.Task.Client
 {
@@ -18,30 +16,44 @@ namespace Taslow.Task.Client
         private readonly HttpClient _httpClient;
         private readonly ILogger<ProjectServiceClient> _log;
 
-        public ProjectServiceClient(HttpClient httpClient)
+        public ProjectServiceClient(HttpClient httpClient, ILogger<ProjectServiceClient> log)
         {
             _httpClient = httpClient;
+            _log = log;
         }
 
-        public async Task<Dictionary<string, ProjectDTO>>
+        public async Task<List<ProjectDTO>>
             GetProjectsAsync(List<string> projectIds, string tenantId)
         {
-            var request = new ProjectBatchRequest
+            try
             {
-                TenantId = tenantId,
-                ProjectIds = projectIds
-            };
+                var request = new ProjectBatchRequest
+                {
+                    TenantId = tenantId,
+                    ProjectIds = projectIds
+                };
 
-            var response = await _httpClient.PostAsJsonAsync(
-                "/api/projects/batch",
-                request);
+                var response = await _httpClient.PostAsJsonAsync(
+                    "/api/projects/batch",
+                    request);
 
-            response.EnsureSuccessStatusCode();
+                response.EnsureSuccessStatusCode();
 
-            var result = await response.Content
-                .ReadFromJsonAsync<ProjectBatchResponse>();
+                var result = await response.Content
+                    .ReadFromJsonAsync<ProjectBatchResponse>();
 
-            return result?.Projects ?? new();
+                return result?.Projects?.Values.ToList() ?? new();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(
+                    ex,
+                    "Error retrieving project batch. TenantId={TenantId}, ProjectCount={ProjectCount}",
+                    tenantId,
+                    projectIds?.Count ?? 0);
+
+                return new List<ProjectDTO>();
+            }
         }
 
         public async Task<List<string>> GetProjectIdsForManagerAsync(
@@ -68,6 +80,22 @@ namespace Taslow.Task.Client
                 );
 
                 return new List<string>();
+            }
+        }
+
+        public async Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"/api/projects/active/{tenantId}");
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadFromJsonAsync<List<ProjectDTO>>() ?? new();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Error retrieving active projects. TenantId={TenantId}", tenantId);
+                return new List<ProjectDTO>();
             }
         }
 

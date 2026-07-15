@@ -25,11 +25,7 @@ namespace TenantApp.IntegrationTests
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
 
-            var created = await service.CreateAsync(new TenantCreateRequest
-            {
-                DisplayName = "Acme Construction",
-                Provider = TenantProviders.Microsoft
-            }, auth);
+            var created = await service.CreateAsync(CreateTenantRequest("Acme Construction"), auth);
 
             Assert.False(string.IsNullOrWhiteSpace(created.TenantId));
             Assert.False(string.IsNullOrWhiteSpace(created.ETag));
@@ -52,11 +48,7 @@ namespace TenantApp.IntegrationTests
             ITenantService service = new TenantService(repository, validation, authorization);
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
-            var created = await service.CreateAsync(new TenantCreateRequest
-            {
-                DisplayName = "Contoso",
-                Provider = TenantProviders.Microsoft
-            }, auth);
+            var created = await service.CreateAsync(CreateTenantRequest("Contoso"), auth);
 
             await service.PatchTenantAsync(
                 created.TenantId,
@@ -74,6 +66,24 @@ namespace TenantApp.IntegrationTests
             });
 
             Assert.Equal(HttpStatusCode.PreconditionFailed, ex.StatusCode);
+        }
+
+        private static TenantCreateRequest CreateTenantRequest(string displayName)
+        {
+            return new TenantCreateRequest
+            {
+                DisplayName = displayName,
+                Provider = TenantProviders.Microsoft,
+                CompanyPocName = "Jordan Lee",
+                CompanyPocTitle = "Program Manager",
+                CompanyPocEmail = "jordan.lee@example.com",
+                CompanyPocPhone = "+1 555-0100",
+                MailingAddressLine1 = "100 Main Street",
+                MailingCity = "Arlington",
+                MailingStateProvince = "VA",
+                MailingPostalCode = "22201",
+                MailingCountryCode = "US"
+            };
         }
     }
 

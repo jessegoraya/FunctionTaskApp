@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "CosmosDBConnection": "<cosmos-connection-string>",
+    "ProjectServiceBaseUrl": "http://localhost:7073",
+    "TaskCosmosDatabaseName": "bloomskyHealth",
+    "TaskCosmosContainerName": "GroupTaskSet"
+  }
+}

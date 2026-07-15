@@ -9,7 +9,7 @@ namespace Taslow.Shared.Model
 {
     public class ProjectBatchRequest
     {
-        public string TenantId { get; set; }
+        public string TenantId { get; set; } = string.Empty;
         public List<string> ProjectIds { get; set; } = new();
     }
 }
