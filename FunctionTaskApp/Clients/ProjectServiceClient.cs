@@ -20,6 +20,12 @@ namespace Taslow.Task.Client
         {
             _httpClient = httpClient;
             _log = log;
+
+            if (_httpClient.BaseAddress is { } baseAddress
+                && !baseAddress.AbsoluteUri.EndsWith("/", StringComparison.Ordinal))
+            {
+                _httpClient.BaseAddress = new Uri($"{baseAddress.AbsoluteUri}/");
+            }
         }
 
         public async Task<List<ProjectDTO>>
@@ -34,7 +40,7 @@ namespace Taslow.Task.Client
                 };
 
                 var response = await _httpClient.PostAsJsonAsync(
-                    "/api/projects/batch",
+                    "projects/batch",
                     request);
 
                 response.EnsureSuccessStatusCode();
@@ -63,7 +69,7 @@ namespace Taslow.Task.Client
             try
             {
                 var response = await _httpClient.GetAsync(
-                    $"/api/projects/managed/{tenantId}/{manager}");
+                    $"projects/managed/{tenantId}/{manager}");
 
                 response.EnsureSuccessStatusCode();
 
@@ -87,7 +93,7 @@ namespace Taslow.Task.Client
         {
             try
             {
-                var response = await _httpClient.GetAsync($"/api/projects/active/{tenantId}");
+                var response = await _httpClient.GetAsync($"projects/active/{tenantId}");
                 response.EnsureSuccessStatusCode();
 
                 return await response.Content.ReadFromJsonAsync<List<ProjectDTO>>() ?? new();

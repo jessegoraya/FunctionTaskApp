@@ -1,5 +1,10 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.2
+
+- Preserves the configured Project API base path when Task Analytics requests active, managed, or batched projects through APIM.
+- Adds client route-composition tests to prevent silent empty Analytics portfolios caused by malformed upstream URLs.
+
 ## v0.1.0-dev.1
 
 - Migrates Task, Project, and Tenant Azure Functions to the .NET 10 isolated worker architecture.
