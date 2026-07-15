@@ -17,18 +17,18 @@ namespace Taslow.Project.Model
         [JsonProperty(PropertyName = "ExtProjectID")]
         public string ExtProjectID { get; set; } = string.Empty;
 
-        [JsonProperty(PropertyName = "projectNames")]
+        [JsonProperty(PropertyName = "ProjectName")]
         public string ProjectNames { get; set; } = string.Empty;
 
-        [JsonProperty(PropertyName = "projectDescription")]
+        [JsonProperty(PropertyName = "ProjectDescription")]
         public string projectdescription { get; set; } = string.Empty;
 
         //set project type as one of 4 types: Delivery, Maintenance, Administrative, Capture
-        [JsonProperty(PropertyName = "projectType")]
+        [JsonProperty(PropertyName = "ProjectType")]
         public string projecttype { get; set; } = string.Empty;
 
         //set 
-        [JsonProperty(PropertyName = "projectStatus")]
+        [JsonProperty(PropertyName = "ProjectStatus")]
         public string projectstatus { get; set; } = string.Empty;
 
         //External customer/client email domains that can help the AI agent identify client-originated project work.
@@ -47,6 +47,9 @@ namespace Taslow.Project.Model
         [JsonProperty(PropertyName = "AssociatedManagers")]
         public List<AssociatedPeople> associatedmanagers { get; set; } = new();
 
+        [JsonProperty(PropertyName = "ProjectScopes")]
+        public List<ProjectScope> projectscopes { get; set; } = new();
+
         //Date the project was created
         [JsonProperty(PropertyName = "DateCreated")]
         public DateTime datecreated { get; set; }
@@ -55,10 +58,34 @@ namespace Taslow.Project.Model
         [JsonProperty(PropertyName = "DateClosed")]
         public DateTime dateclosed { get; set; }
 
+        [JsonProperty(PropertyName = "LastModifiedDate")]
+        public DateTime lastmodifieddate { get; set; }
+
         //associated tenant with the project
         [JsonProperty(PropertyName = "TenantID")]
         //CosmosDB stores tenant id as "tenantID in Partiion Key settings and JSON for items
         public string tenantid { get; set; } = string.Empty;
+    }
+
+    public class ProjectScope
+    {
+        [JsonProperty(PropertyName = "ScopeID")]
+        public string scopeid { get; set; } = string.Empty;
+
+        [JsonProperty(PropertyName = "ProjectScopeAreaTitle")]
+        public string projectscopeareatitle { get; set; } = string.Empty;
+
+        [JsonProperty(PropertyName = "ProjectScopeArea")]
+        public string projectscopearea { get; set; } = string.Empty;
+
+        [JsonProperty(PropertyName = "ProjectScopeAreaEmbeddings")]
+        public List<float> projectscopeareaembeddings { get; set; } = new();
+
+        [JsonProperty(PropertyName = "GroupTaskSetID")]
+        public string? grouptasksetid { get; set; }
+
+        [JsonProperty(PropertyName = "IsArchived")]
+        public bool isarchived { get; set; }
     }
 
     public class AssociatedPeople

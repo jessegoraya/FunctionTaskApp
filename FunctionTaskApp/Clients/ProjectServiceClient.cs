@@ -42,7 +42,7 @@ namespace Taslow.Task.Client
                 var result = await response.Content
                     .ReadFromJsonAsync<ProjectBatchResponse>();
 
-                return result?.Projects?.Values.ToList() ?? new();
+                return result?.Projects ?? new();
             }
             catch (Exception ex)
             {

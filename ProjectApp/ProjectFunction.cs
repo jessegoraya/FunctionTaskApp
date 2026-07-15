@@ -110,7 +110,7 @@ public sealed class ProjectTaskController
         }
 
         var projects = await _projectService.GetProjectsByIdListAsync(request!.ProjectIds, request.TenantId);
-        return await Json(req, HttpStatusCode.OK, new ProjectBatchResponse { Projects = projects });
+        return await Json(req, HttpStatusCode.OK, new ProjectBatchResponse { Projects = projects.Values.ToList() });
     }
 
     [Function("GetProjectAgentContextBatch")]

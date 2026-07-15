@@ -10,6 +10,6 @@ namespace Taslow.Shared.Model
 {
     public class ProjectBatchResponse
     {
-        public Dictionary<string, ProjectDTO> Projects { get; set; } = new();
+        public List<ProjectDTO> Projects { get; set; } = new();
     }
 }

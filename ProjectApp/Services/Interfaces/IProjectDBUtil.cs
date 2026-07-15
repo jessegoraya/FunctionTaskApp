@@ -28,5 +28,35 @@ namespace Taslow.Project.DAL.Interface
 
         Task<ProjectScopeLinkResponse> LinkProjectScopeGroupTaskSetsAsync(ProjectScopeLinkRequest request);
 
+        Task<ProjectDetailDTO?> GetProjectDetailAsync(string tenantId, string projectId)
+            => throw new NotSupportedException();
+
+        Task<bool> IsManagerForProjectAsync(string tenantId, string projectId, string managerEmail)
+            => throw new NotSupportedException();
+
+        Task<ProjectDetailDTO> PatchProjectMetadataAsync(
+            string tenantId,
+            string projectId,
+            ProjectMetadataPatchRequest request)
+            => throw new NotSupportedException();
+
+        Task<ProjectDetailDTO> PatchProjectAssociationsAsync(
+            string tenantId,
+            string projectId,
+            ProjectAssociationPatchRequest request)
+            => throw new NotSupportedException();
+
+        Task<ProjectScopePatchResultDTO> PatchProjectScopesAsync(
+            string tenantId,
+            string projectId,
+            ProjectScopePatchRequest request)
+            => throw new NotSupportedException();
+
+        Task<ProjectScopeGtsLinkResultDTO> LinkScopeGroupTaskSetsAsync(
+            string tenantId,
+            string projectId,
+            ProjectScopeGtsLinkRequest request)
+            => throw new NotSupportedException();
+
     }
 }

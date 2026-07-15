@@ -12,6 +12,7 @@ var host = new HostBuilder()
         services.AddSingleton<IProjectDBUtil, DBUtil>();
         services.AddSingleton<IProjectRequestValidator, ProjectRequestValidator>();
         services.AddSingleton<IProjectService, ProjectService>();
+        services.AddHttpClient<IProjectScopeSyncPublisher, ProjectScopeSyncPublisher>();
     })
     .Build();
 

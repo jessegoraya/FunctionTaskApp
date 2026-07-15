@@ -8,6 +8,8 @@ using Taslow.Shared.Model;
 using Taslow.Project.DAL.Interface;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
+using System.Net;
+using System.Net.Mail;
 
 namespace Taslow.Project.DAL
 {
@@ -48,7 +50,7 @@ namespace Taslow.Project.DAL
         }
 
 
-        private ProjectPersonDTO MapToDTO(AssociatedPeople person,string role)
+        private static ProjectPersonDTO MapToDTO(AssociatedPeople person, string role)
         {
             return new ProjectPersonDTO
             {
@@ -56,8 +58,130 @@ namespace Taslow.Project.DAL
                 PersonName = person.personname,
                 PersonAliases = person.personaliases,
                 PersonEmail = person.personemail,
-                Role = person.role
+                Role = string.IsNullOrWhiteSpace(person.role) ? role : person.role
             };
+        }
+
+        private static string NormalizeEmail(string email)
+            => (email ?? string.Empty).Trim().ToLowerInvariant();
+
+        private static string NormalizeScope(string scopeArea)
+            => (scopeArea ?? string.Empty).Trim().ToLowerInvariant();
+
+        private static string ResolveTenantPartitionKey(TaskProject project, string fallbackTenantId)
+        {
+            var fromDocument = project.tenantid?.Trim();
+            if (!string.IsNullOrWhiteSpace(fromDocument))
+            {
+                return fromDocument;
+            }
+
+            var resolved = (fallbackTenantId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                throw new InvalidOperationException("Project tenant partition key is required.");
+            }
+
+            return resolved;
+        }
+
+        private static bool SequenceEquals(IReadOnlyList<float>? left, IReadOnlyList<float>? right)
+        {
+            if (left == null && right == null)
+            {
+                return true;
+            }
+
+            if (left == null || right == null || left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < left.Count; i++)
+            {
+                if (Math.Abs(left[i] - right[i]) > 0.000001f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsValidEmail(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return false;
+            }
+
+            try
+            {
+                _ = new MailAddress(email);
+                return true;
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+        }
+
+        private static string BuildPersonNameFromEmail(string email)
+        {
+            var local = (email ?? string.Empty).Split('@').FirstOrDefault() ?? string.Empty;
+            return local.Replace('.', ' ').Replace('_', ' ').Trim();
+        }
+
+        private static ProjectDetailDTO MapToDetailDto(TaskProject project)
+        {
+            return new ProjectDetailDTO
+            {
+                Id = project.Id,
+                ProjectName = project.ProjectNames,
+                ProjectDescription = project.projectdescription,
+                ProjectType = project.projecttype,
+                ProjectStatus = project.projectstatus,
+                TenantId = project.tenantid,
+                ExtProjectId = project.ExtProjectID,
+                AssociatedPeople = (project.associatedpeople ?? new List<AssociatedPeople>())
+                    .Select(person => MapToDTO(person, "Person"))
+                    .ToList(),
+                AssociatedManagers = (project.associatedmanagers ?? new List<AssociatedPeople>())
+                    .Select(person => MapToDTO(person, "Manager"))
+                    .ToList(),
+                Scopes = (project.projectscopes ?? new List<ProjectScope>())
+                    .Where(scope => !scope.isarchived)
+                    .Select(scope => new ProjectScopeDTO
+                    {
+                        ScopeId = scope.scopeid,
+                        ProjectScopeAreaTitle = scope.projectscopeareatitle,
+                        ProjectScopeArea = scope.projectscopearea,
+                        ProjectScopeAreaEmbeddings = scope.projectscopeareaembeddings ?? new List<float>(),
+                        GroupTaskSetId = scope.grouptasksetid ?? string.Empty
+                    })
+                    .ToList()
+            };
+        }
+
+        private static ProjectScopeSyncItem MapToSyncItem(ProjectScope scope)
+        {
+            return new ProjectScopeSyncItem
+            {
+                ScopeId = scope.scopeid,
+                ProjectScopeAreaTitle = scope.projectscopeareatitle,
+                ProjectScopeArea = scope.projectscopearea,
+                ProjectScopeAreaEmbeddings = scope.projectscopeareaembeddings ?? new List<float>(),
+                GroupTaskSetId = scope.grouptasksetid ?? string.Empty
+            };
+        }
+
+        private async Task<TaskProject> ReadProjectAsync(string tenantId, string projectId)
+        {
+            var response = await Container.ReadItemAsync<TaskProject>(
+                id: projectId,
+                partitionKey: new PartitionKey(tenantId));
+
+            return response.Resource;
         }
 
         public async Task<bool> InsertProject(TaskProject item)
@@ -367,6 +491,343 @@ namespace Taslow.Project.DAL
             }
 
             return response;
+        }
+
+        public async Task<ProjectDetailDTO?> GetProjectDetailAsync(string tenantId, string projectId)
+        {
+            try
+            {
+                var project = await ReadProjectAsync(tenantId, projectId);
+                return MapToDetailDto(project);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+        }
+
+        public async Task<bool> IsManagerForProjectAsync(string tenantId, string projectId, string managerEmail)
+        {
+            if (string.IsNullOrWhiteSpace(managerEmail))
+            {
+                return false;
+            }
+
+            try
+            {
+                var project = await ReadProjectAsync(tenantId, projectId);
+                var normalizedManager = NormalizeEmail(managerEmail);
+
+                return (project.associatedmanagers ?? new List<AssociatedPeople>())
+                    .Any(person => NormalizeEmail(person.personemail) == normalizedManager);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+        }
+
+        public async Task<ProjectDetailDTO> PatchProjectMetadataAsync(
+            string tenantId,
+            string projectId,
+            ProjectMetadataPatchRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var project = await ReadProjectAsync(tenantId, projectId);
+
+            if (request.ProjectName != null)
+            {
+                project.ProjectNames = request.ProjectName.Trim();
+            }
+
+            if (request.ProjectDescription != null)
+            {
+                project.projectdescription = request.ProjectDescription.Trim();
+            }
+
+            if (request.ProjectType != null)
+            {
+                project.projecttype = request.ProjectType.Trim();
+            }
+
+            if (request.ProjectStatus != null)
+            {
+                project.projectstatus = request.ProjectStatus.Trim();
+            }
+
+            if (request.ExtProjectId != null)
+            {
+                project.ExtProjectID = request.ExtProjectId.Trim();
+            }
+
+            project.lastmodifieddate = DateTime.UtcNow;
+            var partitionKey = ResolveTenantPartitionKey(project, tenantId);
+            project.tenantid = partitionKey;
+            await Container.ReplaceItemAsync(project, project.Id, new PartitionKey(partitionKey));
+
+            return MapToDetailDto(project);
+        }
+
+        public async Task<ProjectDetailDTO> PatchProjectAssociationsAsync(
+            string tenantId,
+            string projectId,
+            ProjectAssociationPatchRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var project = await ReadProjectAsync(tenantId, projectId);
+
+            var members = request.Members
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Select(email => email.Trim())
+                .ToList();
+            var managers = request.Managers
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Select(email => email.Trim())
+                .ToList();
+
+            var invalidEmails = members
+                .Concat(managers)
+                .Where(email => !IsValidEmail(email))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (invalidEmails.Any())
+            {
+                throw new InvalidOperationException($"Invalid email values: {string.Join(", ", invalidEmails)}");
+            }
+
+            var normalizedIncoming = members.Concat(managers).Select(NormalizeEmail).ToList();
+            var requestDuplicates = normalizedIncoming
+                .GroupBy(email => email)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .ToList();
+            if (requestDuplicates.Any())
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate emails in request: {string.Join(", ", requestDuplicates)}");
+            }
+
+            var existingEmails = (project.associatedpeople ?? new List<AssociatedPeople>())
+                .Select(person => NormalizeEmail(person.personemail))
+                .Concat((project.associatedmanagers ?? new List<AssociatedPeople>())
+                    .Select(person => NormalizeEmail(person.personemail)))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var alreadyAssociated = normalizedIncoming
+                .Where(existingEmails.Contains)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (alreadyAssociated.Any())
+            {
+                throw new InvalidOperationException(
+                    $"Emails already associated to this project: {string.Join(", ", alreadyAssociated)}");
+            }
+
+            project.associatedpeople ??= new List<AssociatedPeople>();
+            project.associatedmanagers ??= new List<AssociatedPeople>();
+            project.associatedpeople.AddRange(members.Select(member => new AssociatedPeople
+            {
+                associatedpersonid = Guid.NewGuid(),
+                personemail = member,
+                personname = BuildPersonNameFromEmail(member),
+                role = "Person"
+            }));
+            project.associatedmanagers.AddRange(managers.Select(manager => new AssociatedPeople
+            {
+                associatedpersonid = Guid.NewGuid(),
+                personemail = manager,
+                personname = BuildPersonNameFromEmail(manager),
+                role = "Manager"
+            }));
+
+            project.lastmodifieddate = DateTime.UtcNow;
+            var partitionKey = ResolveTenantPartitionKey(project, tenantId);
+            project.tenantid = partitionKey;
+            await Container.ReplaceItemAsync(project, project.Id, new PartitionKey(partitionKey));
+
+            return MapToDetailDto(project);
+        }
+
+        public async Task<ProjectScopePatchResultDTO> PatchProjectScopesAsync(
+            string tenantId,
+            string projectId,
+            ProjectScopePatchRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            var project = await ReadProjectAsync(tenantId, projectId);
+            var existingScopes = project.projectscopes ?? new List<ProjectScope>();
+            var sanitizedIncoming = request.Scopes
+                .Select(scope => new ProjectScopePatchItem
+                {
+                    ScopeId = scope.ScopeId.Trim(),
+                    ProjectScopeAreaTitle = scope.ProjectScopeAreaTitle.Trim(),
+                    ProjectScopeArea = scope.ProjectScopeArea.Trim(),
+                    ProjectScopeAreaEmbeddings = scope.ProjectScopeAreaEmbeddings ?? new List<float>()
+                })
+                .ToList();
+
+            if (sanitizedIncoming.Any(scope => string.IsNullOrWhiteSpace(scope.ProjectScopeArea)))
+            {
+                throw new InvalidOperationException("Each scope row requires a non-empty projectScopeArea value.");
+            }
+
+            var duplicateScopes = sanitizedIncoming
+                .GroupBy(scope => NormalizeScope(scope.ProjectScopeArea))
+                .Where(group => group.Count() > 1)
+                .Select(group => group.First().ProjectScopeArea)
+                .ToList();
+            if (duplicateScopes.Any())
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate scopes in request: {string.Join(", ", duplicateScopes)}");
+            }
+
+            var existingById = existingScopes
+                .Where(scope => !string.IsNullOrWhiteSpace(scope.scopeid))
+                .ToDictionary(scope => scope.scopeid, scope => scope, StringComparer.OrdinalIgnoreCase);
+            var payload = new ProjectScopeSyncPayload
+            {
+                TenantId = tenantId,
+                ProjectId = projectId,
+                GeneratedAtUtc = DateTime.UtcNow
+            };
+            var retainedScopeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var incoming in sanitizedIncoming)
+            {
+                ProjectScope? targetScope = null;
+                if (!string.IsNullOrWhiteSpace(incoming.ScopeId)
+                    && existingById.TryGetValue(incoming.ScopeId, out var scopeById))
+                {
+                    targetScope = scopeById;
+                }
+                else
+                {
+                    targetScope = existingScopes.FirstOrDefault(scope =>
+                        !scope.isarchived
+                        && NormalizeScope(scope.projectscopearea) == NormalizeScope(incoming.ProjectScopeArea)
+                        && !retainedScopeIds.Contains(scope.scopeid));
+                }
+
+                if (targetScope == null)
+                {
+                    targetScope = new ProjectScope
+                    {
+                        scopeid = Guid.NewGuid().ToString(),
+                        projectscopeareatitle = incoming.ProjectScopeAreaTitle,
+                        projectscopearea = incoming.ProjectScopeArea,
+                        projectscopeareaembeddings = incoming.ProjectScopeAreaEmbeddings,
+                        isarchived = false
+                    };
+                    existingScopes.Add(targetScope);
+                    payload.Added.Add(MapToSyncItem(targetScope));
+                }
+                else
+                {
+                    var changed = !string.Equals(targetScope.projectscopearea, incoming.ProjectScopeArea, StringComparison.Ordinal)
+                        || !string.Equals(targetScope.projectscopeareatitle, incoming.ProjectScopeAreaTitle, StringComparison.Ordinal)
+                        || !SequenceEquals(targetScope.projectscopeareaembeddings, incoming.ProjectScopeAreaEmbeddings);
+                    targetScope.projectscopeareatitle = incoming.ProjectScopeAreaTitle;
+                    targetScope.projectscopearea = incoming.ProjectScopeArea;
+                    targetScope.projectscopeareaembeddings = incoming.ProjectScopeAreaEmbeddings;
+                    targetScope.isarchived = false;
+                    if (changed)
+                    {
+                        payload.Updated.Add(MapToSyncItem(targetScope));
+                    }
+                }
+
+                retainedScopeIds.Add(targetScope.scopeid);
+            }
+
+            foreach (var existing in existingScopes
+                .Where(scope => !scope.isarchived && !retainedScopeIds.Contains(scope.scopeid))
+                .ToList())
+            {
+                existing.isarchived = true;
+                payload.Removed.Add(MapToSyncItem(existing));
+            }
+
+            project.projectscopes = existingScopes;
+            project.lastmodifieddate = DateTime.UtcNow;
+            var partitionKey = ResolveTenantPartitionKey(project, tenantId);
+            project.tenantid = partitionKey;
+            await Container.ReplaceItemAsync(project, project.Id, new PartitionKey(partitionKey));
+
+            return new ProjectScopePatchResultDTO
+            {
+                Project = MapToDetailDto(project),
+                ScopeSync = payload
+            };
+        }
+
+        public async Task<ProjectScopeGtsLinkResultDTO> LinkScopeGroupTaskSetsAsync(
+            string tenantId,
+            string projectId,
+            ProjectScopeGtsLinkRequest request)
+        {
+            if (request?.Mappings == null || !request.Mappings.Any())
+            {
+                throw new ArgumentException("At least one scope-to-GTS mapping is required.");
+            }
+
+            var project = await ReadProjectAsync(tenantId, projectId);
+            project.projectscopes ??= new List<ProjectScope>();
+            var linkedCount = 0;
+            var noOpCount = 0;
+            var conflicts = new List<string>();
+
+            foreach (var mapping in request.Mappings)
+            {
+                var scopeId = mapping.ScopeId.Trim();
+                var groupTaskSetId = mapping.GroupTaskSetId.Trim();
+                if (string.IsNullOrWhiteSpace(scopeId) || string.IsNullOrWhiteSpace(groupTaskSetId))
+                {
+                    throw new InvalidOperationException("Each mapping requires scopeId and groupTaskSetId.");
+                }
+
+                var scope = project.projectscopes.FirstOrDefault(item =>
+                    string.Equals(item.scopeid, scopeId, StringComparison.OrdinalIgnoreCase));
+                if (scope == null)
+                {
+                    throw new InvalidOperationException($"ScopeId not found on project: {scopeId}");
+                }
+
+                var existingGtsId = scope.grouptasksetid?.Trim();
+                if (string.IsNullOrWhiteSpace(existingGtsId))
+                {
+                    scope.grouptasksetid = groupTaskSetId;
+                    linkedCount++;
+                }
+                else if (string.Equals(existingGtsId, groupTaskSetId, StringComparison.OrdinalIgnoreCase))
+                {
+                    noOpCount++;
+                }
+                else
+                {
+                    conflicts.Add(
+                        $"ScopeId {scopeId} already mapped to GroupTaskSetID {existingGtsId}; incoming value {groupTaskSetId} is conflicting.");
+                }
+            }
+
+            if (conflicts.Any())
+            {
+                throw new InvalidOperationException($"CONFLICT: {string.Join(" | ", conflicts)}");
+            }
+
+            if (linkedCount > 0)
+            {
+                project.lastmodifieddate = DateTime.UtcNow;
+                var partitionKey = ResolveTenantPartitionKey(project, tenantId);
+                project.tenantid = partitionKey;
+                await Container.ReplaceItemAsync(project, project.Id, new PartitionKey(partitionKey));
+            }
+
+            return new ProjectScopeGtsLinkResultDTO
+            {
+                LinkedCount = linkedCount,
+                NoOpCount = noOpCount,
+                Project = MapToDetailDto(project)
+            };
         }
 
         private static ProjectAgentContextProject MapAgentContextProject(

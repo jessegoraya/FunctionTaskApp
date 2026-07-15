@@ -53,5 +53,44 @@ namespace TenantApp.Tests
             var ex = Assert.Throws<TenantApiException>(() => _service.ValidateBillingPatch(request));
             Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
         }
+
+        [Fact]
+        public void ValidateCreateRequest_ShouldRequireContactabilityFields()
+        {
+            var request = new TenantCreateRequest
+            {
+                DisplayName = "Acme"
+            };
+
+            var ex = Assert.Throws<TenantApiException>(() => _service.ValidateCreateRequest(request));
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
+            Assert.Equal(TenantErrorCodes.ValidationFailed, ex.Code);
+        }
+
+        [Fact]
+        public void ValidateDetailsPatch_ShouldRejectInvalidCountryCode()
+        {
+            var request = new TenantDetailsPatchRequest
+            {
+                MailingCountryCode = "usa"
+            };
+
+            var ex = Assert.Throws<TenantApiException>(() => _service.ValidateDetailsPatch(request));
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
+            Assert.Equal(TenantErrorCodes.ValidationFailed, ex.Code);
+        }
+
+        [Fact]
+        public void ValidateDetailsPatch_ShouldRejectInvalidCompanyPocPhone()
+        {
+            var request = new TenantDetailsPatchRequest
+            {
+                CompanyPocPhone = "abc"
+            };
+
+            var ex = Assert.Throws<TenantApiException>(() => _service.ValidateDetailsPatch(request));
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
+            Assert.Equal(TenantErrorCodes.ValidationFailed, ex.Code);
+        }
     }
 }
