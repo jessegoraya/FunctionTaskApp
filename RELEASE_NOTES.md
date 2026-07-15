@@ -1,5 +1,11 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.3
+
+- Documents that Microsoft authorization-code exchange requires the Entra client-secret value stored through a Key Vault reference, never the credential ID.
+- Documents that the pre-login integrated-tenant directory selector uses application `User.Read.All` with customer-tenant administrator consent; delegated `User.Read` remains the interactive login scope.
+- Keeps the configured integrated-user list as a Dev fallback only. Release acceptance must prove multi-user Graph enumeration so fallback-only behavior cannot be mistaken for complete tenant onboarding.
+
 ## v0.1.0-dev.2
 
 - Preserves the configured Project API base path when Task Analytics requests active, managed, or batched projects through APIM.
