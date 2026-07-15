@@ -21,7 +21,7 @@ var host = new HostBuilder()
                     "ProjectServiceBaseUrl is not configured.");
             }
 
-            client.BaseAddress = new Uri(baseUrl);
+            client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/");
         });
 
         services.AddScoped<ITaskDBUtil, DBUtil>();
