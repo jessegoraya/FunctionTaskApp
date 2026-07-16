@@ -49,17 +49,101 @@ steps:
     displayName: Audit NuGet dependencies
 
   - task: PublishTestResults@2
+    displayName: Publish Task unit test results
     condition: always()
     inputs:
       testResultsFormat: VSTest
-      testResultsFiles: '**/TestResults/*.trx'
-      testRunTitle: Taslow Function services
+      testResultsFiles: 'FunctionTaskApp.Tests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Task | Unit'
       failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
+
+  - task: PublishTestResults@2
+    displayName: Publish Task integration test results
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: 'FunctionTaskApp.IntegrationTests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Task | Integration'
+      failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
+
+  - task: PublishTestResults@2
+    displayName: Publish Project unit test results
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: 'ProjectApp.Tests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Project | Unit'
+      failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
+
+  - task: PublishTestResults@2
+    displayName: Publish Project integration test results
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: 'ProjectApp.IntegrationTests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Project | Integration'
+      failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
+
+  - task: PublishTestResults@2
+    displayName: Publish Project characterization test results
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: 'ProjectApp.CharacterizationTests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Project | Characterization'
+      failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
+
+  - task: PublishTestResults@2
+    displayName: Publish Tenant unit test results
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: 'TenantApp.Tests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Tenant | Unit'
+      failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
+
+  - task: PublishTestResults@2
+    displayName: Publish Tenant integration test results
+    condition: always()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: 'TenantApp.IntegrationTests/TestResults/*.trx'
+      searchFolder: '$(Build.SourcesDirectory)'
+      testRunTitle: 'Taslow | Component | Tenant | Integration'
+      failTaskOnFailedTests: true
+      failTaskOnFailureToPublishResults: true
+      failTaskOnMissingResultsFile: true
+      publishRunAttachments: true
 
   - task: PublishCodeCoverageResults@2
     condition: succeededOrFailed()
     inputs:
       summaryFileLocation: '$(Build.SourcesDirectory)/**/coverage.cobertura.xml'
+      failIfCoverageEmpty: true
 
   - pwsh: |
       $projects = [ordered]@{
