@@ -1,5 +1,13 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.4
+
+- Treats Microsoft administrator-consent callbacks as successful consent acknowledgments instead of attempting an authorization-code exchange.
+- Keeps administrator consent separate from interactive user login: administrators return to Taslow and start Microsoft sign-in after consent.
+- Adds regression coverage for administrator consent, authorization-code login, provider errors, and malformed Microsoft callbacks.
+- Persists hosted cross-site authentication sessions with `SameSite=None; Secure` cookies while retaining `SameSite=Lax` for local HTTP development.
+- Adds regression coverage for secure session creation, local development, and logout cookie expiration.
+
 ## v0.1.0-dev.3
 
 - Documents that Microsoft authorization-code exchange requires the Entra client-secret value stored through a Key Vault reference, never the credential ID.

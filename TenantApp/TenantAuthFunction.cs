@@ -98,24 +98,40 @@ namespace Taslow.Tenant.Function
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "auth/callback/microsoft")] HttpRequestData req)
             => ExecuteAsync(req, async correlationId =>
             {
-                var query = ParseQuery(req.Url);
-                if (query.TryGetValue("error", out var providerError)
-                    && !string.IsNullOrWhiteSpace(providerError))
+                var callback = ParseMicrosoftCallback(req.Url);
+                if (callback.Kind == MicrosoftCallbackKind.ProviderError)
                 {
-                    var description = query.TryGetValue("error_description", out var value)
-                        ? value
-                        : "Microsoft sign-in was not completed.";
                     throw new TenantApiException(
                         HttpStatusCode.Unauthorized,
                         AuthErrorCodes.TokenInvalid,
-                        description);
+                        callback.ErrorDescription ?? "Microsoft sign-in was not completed.");
                 }
 
-                query.TryGetValue("code", out var code);
-                query.TryGetValue("state", out var state);
+                if (callback.Kind == MicrosoftCallbackKind.AdminConsent)
+                {
+                    _logger.LogInformation(
+                        "Microsoft administrator-consent callback received for provider tenant {ProviderTenantId}; directory access requires separate verification.",
+                        callback.TenantId);
+                    return await Json(req, HttpStatusCode.OK, new
+                    {
+                        adminConsentGranted = true,
+                        provider = AuthProviders.Microsoft,
+                        tenantId = callback.TenantId,
+                        message = "Microsoft administrator consent was granted. Return to Taslow and start Microsoft sign-in again."
+                    }, correlationId);
+                }
+
+                if (callback.Kind == MicrosoftCallbackKind.Invalid)
+                {
+                    throw new TenantApiException(
+                        HttpStatusCode.BadRequest,
+                        TenantErrorCodes.BadRequest,
+                        callback.ErrorDescription ?? "Microsoft callback was not recognized.");
+                }
+
                 var result = await _authService.CompleteMicrosoftLoginAsync(
-                    code ?? string.Empty,
-                    state ?? string.Empty,
+                    callback.Code ?? string.Empty,
+                    callback.State ?? string.Empty,
                     correlationId,
                     req.FunctionContext.CancellationToken);
 
@@ -208,20 +224,29 @@ namespace Taslow.Tenant.Function
             var cookieName = _configuration["Auth:CookieName"] ?? "taslow_auth";
             var maxAgeSeconds = GetSessionLifetimeMinutes() * 60;
             var secure = IsProduction() || IsCookieSecureEnabled();
-            var secureFlag = secure ? "; Secure" : string.Empty;
             response.Headers.Add(
                 "Set-Cookie",
-                $"{cookieName}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={maxAgeSeconds}{secureFlag}");
+                BuildAuthCookieHeader(cookieName, token, maxAgeSeconds, secure));
         }
 
         private void ClearAuthCookie(HttpResponseData response)
         {
             var cookieName = _configuration["Auth:CookieName"] ?? "taslow_auth";
             var secure = IsProduction() || IsCookieSecureEnabled();
-            var secureFlag = secure ? "; Secure" : string.Empty;
             response.Headers.Add(
                 "Set-Cookie",
-                $"{cookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{secureFlag}");
+                BuildAuthCookieHeader(cookieName, string.Empty, 0, secure));
+        }
+
+        internal static string BuildAuthCookieHeader(
+            string cookieName,
+            string value,
+            int maxAgeSeconds,
+            bool secure)
+        {
+            var sameSite = secure ? "None" : "Lax";
+            var secureFlag = secure ? "; Secure" : string.Empty;
+            return $"{cookieName}={value}; HttpOnly; SameSite={sameSite}; Path=/; Max-Age={maxAgeSeconds}{secureFlag}";
         }
 
         private bool IsDevHeadersEnabled()
@@ -276,6 +301,61 @@ namespace Taslow.Tenant.Function
                     : returnUrl;
 
             return new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), safeReturnUrl.TrimStart('/')).ToString();
+        }
+
+        internal static MicrosoftCallbackData ParseMicrosoftCallback(Uri url)
+        {
+            var query = ParseQuery(url);
+            if (query.TryGetValue("error", out var providerError)
+                && !string.IsNullOrWhiteSpace(providerError))
+            {
+                var description = query.TryGetValue("error_description", out var value)
+                    ? value
+                    : "Microsoft sign-in was not completed.";
+                return new MicrosoftCallbackData(
+                    MicrosoftCallbackKind.ProviderError,
+                    ErrorDescription: description);
+            }
+
+            if (query.TryGetValue("admin_consent", out var adminConsent)
+                && bool.TryParse(adminConsent, out var consentGranted)
+                && consentGranted)
+            {
+                query.TryGetValue("tenant", out var tenantId);
+                if (string.IsNullOrWhiteSpace(tenantId) || !Guid.TryParse(tenantId, out _))
+                {
+                    return new MicrosoftCallbackData(
+                        MicrosoftCallbackKind.Invalid,
+                        ErrorDescription: "Microsoft administrator consent callback did not include a valid tenant ID.");
+                }
+
+                query.TryGetValue("state", out var consentState);
+                if (string.IsNullOrWhiteSpace(consentState))
+                {
+                    return new MicrosoftCallbackData(
+                        MicrosoftCallbackKind.Invalid,
+                        ErrorDescription: "Microsoft administrator consent callback did not include state.");
+                }
+
+                return new MicrosoftCallbackData(
+                    MicrosoftCallbackKind.AdminConsent,
+                    State: consentState,
+                    TenantId: tenantId);
+            }
+
+            query.TryGetValue("code", out var code);
+            query.TryGetValue("state", out var state);
+            if (!string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(state))
+            {
+                return new MicrosoftCallbackData(
+                    MicrosoftCallbackKind.AuthorizationCode,
+                    Code: code,
+                    State: state);
+            }
+
+            return new MicrosoftCallbackData(
+                MicrosoftCallbackKind.Invalid,
+                ErrorDescription: "Microsoft callback did not include a successful administrator consent result or an authorization code and state.");
         }
 
         private static Dictionary<string, string> ParseQuery(Uri url)
@@ -345,5 +425,20 @@ namespace Taslow.Tenant.Function
 
             return null;
         }
+
+        internal enum MicrosoftCallbackKind
+        {
+            AuthorizationCode,
+            AdminConsent,
+            ProviderError,
+            Invalid
+        }
+
+        internal sealed record MicrosoftCallbackData(
+            MicrosoftCallbackKind Kind,
+            string? Code = null,
+            string? State = null,
+            string? TenantId = null,
+            string? ErrorDescription = null);
     }
 }
