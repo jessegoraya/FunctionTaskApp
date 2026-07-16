@@ -224,20 +224,29 @@ namespace Taslow.Tenant.Function
             var cookieName = _configuration["Auth:CookieName"] ?? "taslow_auth";
             var maxAgeSeconds = GetSessionLifetimeMinutes() * 60;
             var secure = IsProduction() || IsCookieSecureEnabled();
-            var secureFlag = secure ? "; Secure" : string.Empty;
             response.Headers.Add(
                 "Set-Cookie",
-                $"{cookieName}={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={maxAgeSeconds}{secureFlag}");
+                BuildAuthCookieHeader(cookieName, token, maxAgeSeconds, secure));
         }
 
         private void ClearAuthCookie(HttpResponseData response)
         {
             var cookieName = _configuration["Auth:CookieName"] ?? "taslow_auth";
             var secure = IsProduction() || IsCookieSecureEnabled();
-            var secureFlag = secure ? "; Secure" : string.Empty;
             response.Headers.Add(
                 "Set-Cookie",
-                $"{cookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{secureFlag}");
+                BuildAuthCookieHeader(cookieName, string.Empty, 0, secure));
+        }
+
+        internal static string BuildAuthCookieHeader(
+            string cookieName,
+            string value,
+            int maxAgeSeconds,
+            bool secure)
+        {
+            var sameSite = secure ? "None" : "Lax";
+            var secureFlag = secure ? "; Secure" : string.Empty;
+            return $"{cookieName}={value}; HttpOnly; SameSite={sameSite}; Path=/; Max-Age={maxAgeSeconds}{secureFlag}";
         }
 
         private bool IsDevHeadersEnabled()
