@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Microsoft.Extensions.Configuration;
@@ -13,21 +14,38 @@ namespace Taslow.Tenant.Service
 
         public TenantEmailQueueClient(IConfiguration configuration)
         {
-            var connection = configuration["AzureWebJobsStorage"];
             var queueName = configuration["TenantEmailIngestionQueueName"] ?? "tenant-email-extraction";
-
-            if (string.IsNullOrWhiteSpace(connection))
+            var options = new QueueClientOptions
             {
-                throw new InvalidOperationException("AzureWebJobsStorage setting is missing.");
+                MessageEncoding = QueueMessageEncoding.Base64
+            };
+            var connection = configuration["AzureWebJobsStorage"];
+
+            if (!string.IsNullOrWhiteSpace(connection))
+            {
+                _queueClient = new QueueClient(connection, queueName, options);
+                return;
+            }
+
+            var queueServiceUri = configuration["AzureWebJobsStorage__queueServiceUri"];
+            if (string.IsNullOrWhiteSpace(queueServiceUri))
+            {
+                var accountName = configuration["AzureWebJobsStorage__accountName"];
+                queueServiceUri = string.IsNullOrWhiteSpace(accountName)
+                    ? null
+                    : $"https://{accountName}.queue.core.windows.net";
+            }
+
+            if (string.IsNullOrWhiteSpace(queueServiceUri))
+            {
+                throw new InvalidOperationException(
+                    "Configure AzureWebJobsStorage for local development or AzureWebJobsStorage__accountName for managed identity.");
             }
 
             _queueClient = new QueueClient(
-                connection,
-                queueName,
-                new QueueClientOptions
-                {
-                    MessageEncoding = QueueMessageEncoding.Base64
-                });
+                new Uri($"{queueServiceUri.TrimEnd('/')}/{queueName}"),
+                new DefaultAzureCredential(),
+                options);
         }
 
         public async Task EnqueueAsync(TenantEmailExtractionQueueMessage message, CancellationToken cancellationToken = default)

@@ -8,6 +8,7 @@ using Taslow.Shared.Model;
 using Taslow.Task.Client;
 using Taslow.Task.DAL.Interface;
 using Taslow.Task.Client.Interface;
+using Taslow.Shared.Infrastructure;
 
 
 namespace Taslow.Task.DAL
@@ -22,9 +23,12 @@ namespace Taslow.Task.DAL
 
         public DBUtil(IProjectServiceClient projectServiceClient)
         {
-            string cosmosConnectionString = Environment.GetEnvironmentVariable("CosmosDBConnection");
-            cosmosClient = new CosmosClient(cosmosConnectionString);
-            container = cosmosClient.GetContainer(DatabaseName, ContainerName);
+            cosmosClient = CosmosClientFactory.Create(Environment.GetEnvironmentVariable);
+            var databaseName = Environment.GetEnvironmentVariable("TaskCosmosDatabaseName")
+                ?? Environment.GetEnvironmentVariable("CosmosDBDatabaseName")
+                ?? DatabaseName;
+            var containerName = Environment.GetEnvironmentVariable("TaskCosmosContainerName") ?? ContainerName;
+            container = cosmosClient.GetContainer(databaseName, containerName);
             _projectServiceClient = projectServiceClient;
         }
 
