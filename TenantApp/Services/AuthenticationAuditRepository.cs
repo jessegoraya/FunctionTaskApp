@@ -2,6 +2,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Taslow.Shared.Model;
 using Taslow.Tenant.Service.Interface;
+using Taslow.Shared.Infrastructure;
 
 namespace Taslow.Tenant.Service
 {
@@ -11,16 +12,9 @@ namespace Taslow.Tenant.Service
 
         public AuthenticationAuditRepository(IConfiguration configuration)
         {
-            var connection = configuration["CosmosDBConnection"];
             var databaseName = configuration["TenantCosmosDatabaseName"] ?? "bloomskyHealth";
             var containerName = configuration["Auth:AuditContainerName"] ?? "AuthenticationAudit";
-
-            if (string.IsNullOrWhiteSpace(connection))
-            {
-                throw new InvalidOperationException("CosmosDBConnection setting is missing.");
-            }
-
-            var client = new CosmosClient(connection);
+            var client = CosmosClientFactory.Create(key => configuration[key]);
             _container = client.GetContainer(databaseName, containerName);
         }
 

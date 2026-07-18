@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using Taslow.Shared.Model;
 using Taslow.Tenant.DAL.Interface;
 using Taslow.Tenant.Model;
+using Taslow.Shared.Infrastructure;
 
 namespace Taslow.Tenant.DAL
 {
@@ -14,16 +15,9 @@ namespace Taslow.Tenant.DAL
 
         public TenantRepository(IConfiguration configuration)
         {
-            var connection = configuration["CosmosDBConnection"];
             var databaseName = configuration["TenantCosmosDatabaseName"] ?? "bloomskyHealth";
             var containerName = configuration["TenantCosmosContainerName"] ?? "Tenant";
-
-            if (string.IsNullOrWhiteSpace(connection))
-            {
-                throw new InvalidOperationException("CosmosDBConnection setting is missing.");
-            }
-
-            var client = new CosmosClient(connection);
+            var client = CosmosClientFactory.Create(key => configuration[key]);
             _container = client.GetContainer(databaseName, containerName);
         }
 

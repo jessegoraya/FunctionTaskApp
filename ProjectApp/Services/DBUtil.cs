@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Net.Mail;
+using Taslow.Shared.Infrastructure;
 
 namespace Taslow.Project.DAL
 {
@@ -34,16 +35,12 @@ namespace Taslow.Project.DAL
                 if (container != null)
                     return container;
 
-                var connectionString = _configuration["CosmosDBConnection"];
-
-                if (string.IsNullOrWhiteSpace(connectionString))
-                {
-                    throw new InvalidOperationException(
-                        "CosmosDBConnection setting is missing");
-                }
-
-                cosmosClient = new CosmosClient(connectionString);
-                container = cosmosClient.GetContainer(DatabaseName, ContainerName);
+                cosmosClient = CosmosClientFactory.Create(key => _configuration[key]);
+                var databaseName = _configuration["ProjectCosmosDatabaseName"]
+                    ?? _configuration["CosmosDBDatabaseName"]
+                    ?? DatabaseName;
+                var containerName = _configuration["ProjectCosmosContainerName"] ?? ContainerName;
+                container = cosmosClient.GetContainer(databaseName, containerName);
 
                 return container;
             }

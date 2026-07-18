@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using Taslow.Shared.Model;
 using Taslow.Tenant.Service.Interface;
+using Taslow.Shared.Infrastructure;
 
 namespace Taslow.Tenant.Service
 {
@@ -17,7 +18,6 @@ namespace Taslow.Tenant.Service
             IConfiguration configuration,
             ILogger<TenantUserCatalogService> logger)
         {
-            var connection = configuration["CosmosDBConnection"];
             var databaseName = configuration["ProjectCosmosDatabaseName"]
                 ?? configuration["TenantCosmosDatabaseName"]
                 ?? "bloomskyHealth";
@@ -25,12 +25,7 @@ namespace Taslow.Tenant.Service
             var tenantDatabaseName = configuration["TenantCosmosDatabaseName"] ?? databaseName;
             var tenantContainerName = configuration["TenantCosmosContainerName"] ?? "Tenant";
 
-            if (string.IsNullOrWhiteSpace(connection))
-            {
-                throw new InvalidOperationException("CosmosDBConnection setting is missing.");
-            }
-
-            var client = new CosmosClient(connection);
+            var client = CosmosClientFactory.Create(key => configuration[key]);
             _projectContainer = client.GetContainer(databaseName, containerName);
             _tenantContainer = client.GetContainer(tenantDatabaseName, tenantContainerName);
             _logger = logger;

@@ -3,6 +3,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Taslow.Tenant.DAL.Interface;
 using Taslow.Tenant.Model;
+using Taslow.Shared.Infrastructure;
 
 namespace Taslow.Tenant.DAL
 {
@@ -12,16 +13,9 @@ namespace Taslow.Tenant.DAL
 
         public TenantEmailIngestionStateRepository(IConfiguration configuration)
         {
-            var connection = configuration["CosmosDBConnection"];
             var databaseName = configuration["TenantCosmosDatabaseName"] ?? "bloomskyHealth";
             var containerName = configuration["TenantEmailIngestionStateContainerName"] ?? "TenantEmailIngestion";
-
-            if (string.IsNullOrWhiteSpace(connection))
-            {
-                throw new InvalidOperationException("CosmosDBConnection setting is missing.");
-            }
-
-            var client = new CosmosClient(connection);
+            var client = CosmosClientFactory.Create(key => configuration[key]);
             _container = client.GetContainer(databaseName, containerName);
         }
 
