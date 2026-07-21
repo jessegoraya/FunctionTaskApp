@@ -21,6 +21,13 @@ namespace Taslow.Shared.Model
             TenantPm,
             TenantUser
         };
+
+        public static readonly HashSet<string> TenantAssignable = new(StringComparer.OrdinalIgnoreCase)
+        {
+            TenantAdmin,
+            TenantLeader,
+            TenantUser
+        };
     }
 
     public static class TenantStatuses
@@ -431,8 +438,50 @@ namespace Taslow.Shared.Model
         [JsonProperty("isActive")]
         public bool IsActive { get; set; } = true;
 
+        [JsonProperty("roles")]
+        public List<string> Roles { get; set; } = new();
+
         [JsonProperty("leaderMarketCodes")]
         public List<string> LeaderMarketCodes { get; set; } = new();
+    }
+
+    public class TenantUserRoleAssignmentRequest
+    {
+        [JsonProperty("userId")]
+        public string UserId { get; set; } = string.Empty;
+
+        [JsonProperty("displayName")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [JsonProperty("email")]
+        public string Email { get; set; } = string.Empty;
+
+        [JsonProperty("title")]
+        public string? Title { get; set; }
+
+        [JsonProperty("isActive")]
+        public bool IsActive { get; set; } = true;
+
+        [JsonProperty("roles")]
+        public List<string> Roles { get; set; } = new();
+    }
+
+    public class TenantUsersPatchRequest
+    {
+        [JsonProperty("users")]
+        public List<TenantUserRoleAssignmentRequest> Users { get; set; } = new();
+    }
+
+    public class TenantUsersResponse
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("etag")]
+        public string ETag { get; set; } = string.Empty;
+
+        [JsonProperty("users")]
+        public List<TenantUserMembershipDTO> Users { get; set; } = new();
     }
 
     public class TenantMarketCodesPatchRequest

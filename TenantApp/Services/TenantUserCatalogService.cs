@@ -127,6 +127,13 @@ namespace Taslow.Tenant.Service
 
                     person.ExplicitUserId = ReadString(entry, "userId", "UserId");
                     person.IsExplicitTenantUser = true;
+                    person.ExplicitRoles = (GetProperty(entry, "roles", "Roles") as JArray)?
+                        .Values<string>()
+                        .Where(role => !string.IsNullOrWhiteSpace(role) && TenantRoles.TenantAssignable.Contains(role!))
+                        .Select(role => role!.Trim().ToLowerInvariant())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                        ?? new List<string>();
                     person.LeaderMarketCodes = (GetProperty(entry, "leaderMarketCodes", "leader_market_codes") as JArray)?
                         .Values<string>()
                         .Where(code => !string.IsNullOrWhiteSpace(code))
@@ -135,7 +142,8 @@ namespace Taslow.Tenant.Service
                         .OrderBy(code => code)
                         .ToList()
                         ?? new List<string>();
-                    person.IsLeader = person.LeaderMarketCodes.Count > 0;
+                    person.IsLeader = person.LeaderMarketCodes.Count > 0
+                        || person.ExplicitRoles.Contains(TenantRoles.TenantLeader, StringComparer.OrdinalIgnoreCase);
                 }
             }
             catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -240,11 +248,14 @@ namespace Taslow.Tenant.Service
             public bool IsExplicitTenantUser { get; set; }
             public bool IsLeader { get; set; }
             public string ExplicitUserId { get; set; } = string.Empty;
+            public List<string> ExplicitRoles { get; set; } = new();
             public List<string> LeaderMarketCodes { get; set; } = new();
 
             public SelectableUser ToSelectableUser(string tenantId)
             {
-                var roles = new List<string>();
+                var roles = ExplicitRoles
+                    .Where(TenantRoles.TenantAssignable.Contains)
+                    .ToList();
                 if (IsManager)
                 {
                     roles.Add(TenantRoles.TenantPm);
@@ -260,11 +271,13 @@ namespace Taslow.Tenant.Service
                     roles.Add(TenantRoles.TenantUser);
                 }
 
-                var role = IsManager
-                    ? TenantRoles.TenantPm
-                    : IsLeader
-                        ? TenantRoles.TenantLeader
-                        : TenantRoles.TenantUser;
+                roles = roles
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(GetRoleOrder)
+                    .ThenBy(role => role)
+                    .ToList();
+
+                var role = roles[0];
                 var subject = $"synthetic:{tenantId}:{NormalizeSubjectPart(Email)}";
                 var sources = new List<string>();
                 if (IsManager)
@@ -279,7 +292,18 @@ namespace Taslow.Tenant.Service
 
                 if (IsExplicitTenantUser)
                 {
-                    sources.Add(IsLeader ? "tenant_leader_assignment" : "tenant_user_assignment");
+                    if (ExplicitRoles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase))
+                    {
+                        sources.Add("tenant_admin_assignment");
+                    }
+                    if (IsLeader)
+                    {
+                        sources.Add("tenant_leader_assignment");
+                    }
+                    if (!ExplicitRoles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase) && !IsLeader)
+                    {
+                        sources.Add("tenant_user_assignment");
+                    }
                 }
 
                 return new SelectableUser
@@ -294,12 +318,22 @@ namespace Taslow.Tenant.Service
                     PrimaryRole = role,
                     Roles = roles,
                     LeaderMarketCodes = LeaderMarketCodes,
-                    RoleDerivationSummary = IsLeader
+                    RoleDerivationSummary = roles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase)
+                        ? "Explicit tenant administrator assignment."
+                        : IsLeader
                         ? $"Tenant leader for Market Codes: {string.Join(", ", LeaderMarketCodes)}."
                         : IsManager
                             ? "Derived from project manager relationship."
                             : "Derived from project participant relationship."
                 };
+            }
+
+            private static int GetRoleOrder(string role)
+            {
+                if (role.Equals(TenantRoles.TenantAdmin, StringComparison.OrdinalIgnoreCase)) return 0;
+                if (role.Equals(TenantRoles.TenantPm, StringComparison.OrdinalIgnoreCase)) return 1;
+                if (role.Equals(TenantRoles.TenantLeader, StringComparison.OrdinalIgnoreCase)) return 2;
+                return 3;
             }
         }
     }

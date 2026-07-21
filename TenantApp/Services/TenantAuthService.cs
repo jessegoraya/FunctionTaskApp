@@ -126,9 +126,7 @@ namespace Taslow.Tenant.Service
                 roles.Add(TenantRoles.TenantUser);
             }
 
-            var primaryRole = roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
-                ? TenantRoles.TenantPm
-                : roles[0];
+            var primaryRole = SelectPrimaryRole(roles);
 
             var expiresAt = DateTimeOffset.UtcNow.AddMinutes(GetSessionLifetimeMinutes());
             var auth = new TenantAuthContext
@@ -311,9 +309,7 @@ namespace Taslow.Tenant.Service
                 roles.Add(TenantRoles.TenantUser);
             }
 
-            var primaryRole = roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
-                ? TenantRoles.TenantPm
-                : roles[0];
+            var primaryRole = SelectPrimaryRole(roles);
             var expiresAt = DateTimeOffset.UtcNow.AddMinutes(GetSessionLifetimeMinutes());
             var providerSubject = FindClaimValue(
                 principal,
@@ -1075,9 +1071,7 @@ namespace Taslow.Tenant.Service
                 roles.Add(TenantRoles.TenantUser);
             }
 
-            var primaryRole = roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
-                ? TenantRoles.TenantPm
-                : roles[0];
+            var primaryRole = SelectPrimaryRole(roles);
             var subject = $"{provider}:{tenant.Tenant.TenantId}:{NormalizeSubjectPart(email)}";
             var source = string.IsNullOrWhiteSpace(projectUser?.Source)
                 ? "provider_directory"
@@ -1122,6 +1116,25 @@ namespace Taslow.Tenant.Service
                 $"Auth:{provider}:IntegratedInternalDomains:{tenant.Tenant.TenantId}"));
 
             return domains;
+        }
+
+        private static string SelectPrimaryRole(IReadOnlyCollection<string> roles)
+        {
+            foreach (var preferredRole in new[]
+                     {
+                         TenantRoles.TenantAdmin,
+                         TenantRoles.TenantPm,
+                         TenantRoles.TenantLeader,
+                         TenantRoles.TenantUser
+                     })
+            {
+                if (roles.Contains(preferredRole, StringComparer.OrdinalIgnoreCase))
+                {
+                    return preferredRole;
+                }
+            }
+
+            return roles.First();
         }
 
         private List<string> ReadConfigurationList(params string[] keys)

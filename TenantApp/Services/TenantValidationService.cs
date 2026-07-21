@@ -224,6 +224,50 @@ namespace Taslow.Tenant.Service
             }
         }
 
+        public void ValidateTenantUsersPatch(TenantUsersPatchRequest request)
+        {
+            if (request?.Users == null || request.Users.Count == 0)
+            {
+                throw Validation("users must contain at least one explicit tenant user.");
+            }
+
+            var userIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var emails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var user in request.Users)
+            {
+                ValidateRequiredText(user.UserId, "users.userId", 128);
+                ValidateRequiredText(user.DisplayName, "users.displayName", 200);
+                ValidateRequiredEmail(user.Email, "users.email");
+                ValidateOptionalText(user.Title, "users.title", 200);
+
+                if (!userIds.Add(user.UserId.Trim()))
+                {
+                    throw Validation("users contains duplicate userId values.");
+                }
+
+                if (!emails.Add(user.Email.Trim()))
+                {
+                    throw Validation("users contains duplicate email values.");
+                }
+
+                var roles = (user.Roles ?? new List<string>())
+                    .Select(role => role?.Trim().ToLowerInvariant())
+                    .Where(role => !string.IsNullOrWhiteSpace(role))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (roles.Count == 0)
+                {
+                    throw Validation("users.roles must contain at least one tenant-assignable role.");
+                }
+
+                var invalidRole = roles.FirstOrDefault(role => !TenantRoles.TenantAssignable.Contains(role!));
+                if (!string.IsNullOrWhiteSpace(invalidRole))
+                {
+                    throw Validation($"users.roles contains a role that cannot be assigned by a tenant: {invalidRole}.");
+                }
+            }
+        }
+
         public void ValidateIfMatch(string? ifMatchHeader)
         {
             if (string.IsNullOrWhiteSpace(ifMatchHeader))

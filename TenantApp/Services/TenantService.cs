@@ -323,6 +323,75 @@ namespace Taslow.Tenant.Service
             }, cancellationToken);
         }
 
+        public async Task<TenantUsersResponse> GetUsersAsync(
+            string tenantId,
+            TenantAuthContext auth,
+            CancellationToken cancellationToken = default)
+        {
+            _authorization.EnsureCanReadOrUpdateTenant(auth, tenantId);
+            var (document, eTag) = await RequireTenantAsync(tenantId, cancellationToken);
+            return ToTenantUsersResponse(document, eTag);
+        }
+
+        public async Task<TenantUsersResponse> PatchUsersAsync(
+            string tenantId,
+            TenantUsersPatchRequest request,
+            string ifMatch,
+            TenantAuthContext auth,
+            CancellationToken cancellationToken = default)
+        {
+            _authorization.EnsureCanReadOrUpdateTenant(auth, tenantId);
+            _validation.ValidateIfMatch(ifMatch);
+            _validation.ValidateTenantUsersPatch(request);
+
+            var (document, _) = await RequireTenantAsync(tenantId, cancellationToken);
+            var existingUsers = document.TenantUsers
+                .GroupBy(user => user.UserId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            var activeMarketCodes = document.MarketCodes
+                .Where(item => item.IsActive)
+                .Select(item => item.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            document.TenantUsers = request.Users
+                .Select(user =>
+                {
+                    var roles = user.Roles
+                        .Select(role => role.Trim().ToLowerInvariant())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(GetTenantRoleOrder)
+                        .ThenBy(role => role)
+                        .ToList();
+                    existingUsers.TryGetValue(user.UserId.Trim(), out var existingUser);
+                    var leaderMarketCodes = roles.Contains(TenantRoles.TenantLeader, StringComparer.OrdinalIgnoreCase)
+                        ? (existingUser?.LeaderMarketCodes ?? new List<string>())
+                            .Where(activeMarketCodes.Contains)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(code => code)
+                            .ToList()
+                        : new List<string>();
+
+                    return new TenantUserMembershipDTO
+                    {
+                        UserId = user.UserId.Trim(),
+                        DisplayName = user.DisplayName.Trim(),
+                        Email = user.Email.Trim().ToLowerInvariant(),
+                        Title = string.IsNullOrWhiteSpace(user.Title) ? null : user.Title.Trim(),
+                        IsActive = user.IsActive,
+                        Roles = roles,
+                        LeaderMarketCodes = leaderMarketCodes
+                    };
+                })
+                .OrderBy(user => user.DisplayName)
+                .ThenBy(user => user.Email)
+                .ToList();
+            document.SchemaVersion = "1.2.0";
+            document.Tenant.UpdatedAt = DateTime.UtcNow.ToString("O");
+
+            var (updated, eTag) = await _repository.ReplaceAsync(document, ifMatch, cancellationToken);
+            return ToTenantUsersResponse(updated, eTag);
+        }
+
         public async Task<TenantMarketCodesResponse> GetMarketCodesAsync(
             string tenantId,
             TenantAuthContext auth,
@@ -519,6 +588,23 @@ namespace Taslow.Tenant.Service
             }
 
             currentUser.LeaderMarketCodes = codes;
+            currentUser.Roles ??= new List<string>();
+            currentUser.Roles = currentUser.Roles
+                .Where(role => !role.Equals(TenantRoles.TenantLeader, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (codes.Count > 0)
+            {
+                currentUser.Roles.Add(TenantRoles.TenantLeader);
+            }
+            if (currentUser.Roles.Count == 0)
+            {
+                currentUser.Roles.Add(TenantRoles.TenantUser);
+            }
+            currentUser.Roles = currentUser.Roles
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(GetTenantRoleOrder)
+                .ThenBy(role => role)
+                .ToList();
             currentUser.IsActive = true;
             document.SchemaVersion = "1.1.0";
             document.Tenant.UpdatedAt = DateTime.UtcNow.ToString("O");
@@ -567,6 +653,27 @@ namespace Taslow.Tenant.Service
             }
 
             return normalized;
+        }
+
+        private static TenantUsersResponse ToTenantUsersResponse(TenantDocumentDTO document, string eTag)
+        {
+            return new TenantUsersResponse
+            {
+                TenantId = document.Tenant.TenantId,
+                ETag = eTag,
+                Users = document.TenantUsers
+                    .Where(user => user.IsActive)
+                    .OrderBy(user => user.DisplayName)
+                    .ThenBy(user => user.Email)
+                    .ToList()
+            };
+        }
+
+        private static int GetTenantRoleOrder(string role)
+        {
+            if (role.Equals(TenantRoles.TenantAdmin, StringComparison.OrdinalIgnoreCase)) return 0;
+            if (role.Equals(TenantRoles.TenantLeader, StringComparison.OrdinalIgnoreCase)) return 1;
+            return 2;
         }
 
         private static void ValidateEmail(string email)
