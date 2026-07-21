@@ -1,5 +1,12 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.5
+
+- Allows a signed `tenant_admin` session to create a complete Project within its own tenant while requiring at least one explicit Project Manager and scope.
+- Validates Project authorization from the shared signed bearer token or HttpOnly cookie and rejects forged browser identity headers and cross-tenant creation.
+- Persists Market Code, members, managers, and scopes in the initial Project document; the creating Tenant Admin is not promoted to Project Manager automatically.
+- Retains assigned `tenant_pm` authorization for existing Project edits and adds regression coverage for role, tenant, token, and request-validation boundaries.
+
 ## v0.1.0-dev.4
 
 - Treats Microsoft administrator-consent callbacks as successful consent acknowledgments instead of attempting an authorization-code exchange.

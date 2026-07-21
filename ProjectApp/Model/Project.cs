@@ -27,6 +27,9 @@ namespace Taslow.Project.Model
         [JsonProperty(PropertyName = "ProjectType")]
         public string projecttype { get; set; } = string.Empty;
 
+        [JsonProperty(PropertyName = "MarketCode")]
+        public string marketcode { get; set; } = string.Empty;
+
         //set 
         [JsonProperty(PropertyName = "ProjectStatus")]
         public string projectstatus { get; set; } = string.Empty;
