@@ -92,5 +92,44 @@ namespace TenantApp.Tests
             Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
             Assert.Equal(TenantErrorCodes.ValidationFailed, ex.Code);
         }
+
+        [Fact]
+        public void ValidateTenantUsersPatch_ShouldRejectTaslowAdminAssignment()
+        {
+            var request = new TenantUsersPatchRequest
+            {
+                Users = new List<TenantUserRoleAssignmentRequest>
+                {
+                    new()
+                    {
+                        UserId = "owner-1",
+                        DisplayName = "Owner One",
+                        Email = "owner@example.com",
+                        Roles = new List<string> { TenantRoles.TaslowAdmin }
+                    }
+                }
+            };
+
+            var ex = Assert.Throws<TenantApiException>(() => _service.ValidateTenantUsersPatch(request));
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
+            Assert.Contains("cannot be assigned", ex.Message);
+        }
+
+        [Fact]
+        public void ValidateTenantUsersPatch_ShouldRejectDuplicateEmails()
+        {
+            var request = new TenantUsersPatchRequest
+            {
+                Users = new List<TenantUserRoleAssignmentRequest>
+                {
+                    new() { UserId = "user-1", DisplayName = "User One", Email = "same@example.com", Roles = new List<string> { TenantRoles.TenantUser } },
+                    new() { UserId = "user-2", DisplayName = "User Two", Email = "SAME@example.com", Roles = new List<string> { TenantRoles.TenantUser } }
+                }
+            };
+
+            var ex = Assert.Throws<TenantApiException>(() => _service.ValidateTenantUsersPatch(request));
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, ex.StatusCode);
+            Assert.Contains("duplicate email", ex.Message);
+        }
     }
 }

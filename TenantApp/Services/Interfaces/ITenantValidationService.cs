@@ -10,6 +10,7 @@ namespace Taslow.Tenant.Service.Interface
         void ValidateAdministrationPatch(TenantAdministrationPatchRequest request);
         void ValidateIdentityPatch(TenantIdentityPatchRequest request, TenantDocumentDTO current);
         void ValidateEmailIntegrationPatch(TenantEmailIntegrationPatchRequest request, TenantDocumentDTO current);
+        void ValidateTenantUsersPatch(TenantUsersPatchRequest request);
         void ValidateIfMatch(string? ifMatchHeader);
     }
 }

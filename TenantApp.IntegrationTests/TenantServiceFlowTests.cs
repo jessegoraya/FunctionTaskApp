@@ -68,6 +68,51 @@ namespace TenantApp.IntegrationTests
             Assert.Equal(HttpStatusCode.PreconditionFailed, ex.StatusCode);
         }
 
+        [Fact]
+        public async Task PatchTenantUsersFlow_ShouldPersistOnlyTenantAssignableRoles()
+        {
+            ITenantRepository repository = new InMemoryTenantRepository();
+            ITenantValidationService validation = new TenantValidationService();
+            ITenantAuthorizationService authorization = new TenantAuthorizationService();
+            ITenantService service = new TenantService(repository, validation, authorization);
+
+            var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
+            var created = await service.CreateAsync(CreateTenantRequest("Role Test"), auth);
+            var patched = await service.PatchUsersAsync(
+                created.TenantId,
+                new TenantUsersPatchRequest
+                {
+                    Users = new List<TenantUserRoleAssignmentRequest>
+                    {
+                        new()
+                        {
+                            UserId = "tenant-admin-1",
+                            DisplayName = "Tenant Admin",
+                            Email = "admin@example.com",
+                            Roles = new List<string> { TenantRoles.TenantAdmin }
+                        },
+                        new()
+                        {
+                            UserId = "tenant-leader-1",
+                            DisplayName = "Tenant Leader",
+                            Email = "leader@example.com",
+                            Roles = new List<string> { TenantRoles.TenantLeader }
+                        }
+                    }
+                },
+                created.ETag,
+                auth);
+
+            Assert.Equal(2, patched.Users.Count);
+            Assert.Equal(TenantRoles.TenantAdmin, patched.Users.Single(user => user.UserId == "tenant-admin-1").Roles.Single());
+            Assert.Equal(TenantRoles.TenantLeader, patched.Users.Single(user => user.UserId == "tenant-leader-1").Roles.Single());
+            Assert.DoesNotContain(patched.Users.SelectMany(user => user.Roles), role => role == TenantRoles.TaslowAdmin || role == TenantRoles.TenantPm);
+
+            var read = await service.GetUsersAsync(created.TenantId, auth);
+            Assert.Equal(patched.ETag, read.ETag);
+            Assert.Equal(2, read.Users.Count);
+        }
+
         private static TenantCreateRequest CreateTenantRequest(string displayName)
         {
             return new TenantCreateRequest

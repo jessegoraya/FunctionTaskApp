@@ -1,5 +1,12 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.6
+
+- Adds governed Tenant user catalog read/reconciliation endpoints for production-shaped directory onboarding.
+- Persists explicit `tenant_admin`, `tenant_leader`, and `tenant_user` assignments while preventing tenant onboarding from granting `taslow_admin` or Project-owned `tenant_pm`.
+- Resolves integrated Microsoft sessions from the persisted tenant roles so an approved Tenant Administrator can create the tenant's first Project through the Taslow UX.
+- Preserves existing leader Market Code scopes during directory reconciliation and continues enforcing tenant boundaries and optimistic concurrency.
+
 ## v0.1.0-dev.5
 
 - Allows a signed `tenant_admin` session to create a complete Project within its own tenant while requiring at least one explicit Project Manager and scope.

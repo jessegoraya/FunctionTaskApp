@@ -120,6 +120,28 @@ namespace Taslow.Tenant.Function
                 return await Json(req, HttpStatusCode.OK, result, correlationId);
             });
 
+        [Function("GetTenantUsers")]
+        public Task<HttpResponseData> GetTenantUsers(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "tenants/{tenantId}/users")] HttpRequestData req,
+            string tenantId)
+            => ExecuteAsync(req, async (auth, correlationId) =>
+            {
+                var result = await _tenantService.GetUsersAsync(tenantId, auth, req.FunctionContext.CancellationToken);
+                return await Json(req, HttpStatusCode.OK, result, correlationId);
+            });
+
+        [Function("PatchTenantUsers")]
+        public Task<HttpResponseData> PatchTenantUsers(
+            [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "tenants/{tenantId}/users")] HttpRequestData req,
+            string tenantId)
+            => ExecuteAsync(req, async (auth, correlationId) =>
+            {
+                var request = await ReadBodyAsync<TenantUsersPatchRequest>(req);
+                var ifMatch = GetHeader(req, "If-Match");
+                var result = await _tenantService.PatchUsersAsync(tenantId, request, ifMatch, auth, req.FunctionContext.CancellationToken);
+                return await Json(req, HttpStatusCode.OK, result, correlationId);
+            });
+
         [Function("GetTenantMarketCodes")]
         public Task<HttpResponseData> GetTenantMarketCodes(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "tenants/{tenantId}/market-codes")] HttpRequestData req,
