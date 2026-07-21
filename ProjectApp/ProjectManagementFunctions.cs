@@ -53,6 +53,7 @@ public sealed class ProjectManagementFunctions
                 HttpStatusCode.BadRequest,
                 "Project name, canonical type, Market Code, at least one manager, valid unique people, and unique non-empty scopes are required.");
         }
+        ArgumentNullException.ThrowIfNull(request);
 
         var now = DateTime.UtcNow;
         var managers = request.Managers
