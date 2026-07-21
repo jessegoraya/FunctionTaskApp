@@ -4,6 +4,11 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "CosmosDBConnection": "<local-or-dev-cosmos-connection>",
-    "ProjectScopeLinkCallbackFunctionKey": "<local-callback-secret>"
+    "ProjectScopeLinkCallbackFunctionKey": "<local-callback-secret>",
+    "Auth:Environment": "development",
+    "Auth:Issuer": "taslow-dev-auth",
+    "Auth:Audience": "taslow-api",
+    "Auth:CookieName": "taslow_auth",
+    "Auth:JwtSigningKey": "taslow-development-auth-signing-key-change-before-production"
   }
 }

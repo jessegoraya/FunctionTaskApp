@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Taslow.Project.DAL.Interface;
 using Taslow.Project.Model;
+using Taslow.Project.Service;
 using Taslow.Project.Service.Interface;
 using Taslow.Shared.Model;
 
@@ -14,15 +15,21 @@ namespace Taslow.Project.Function;
 public sealed class ProjectManagementFunctions
 {
     private readonly IProjectDBUtil _projectDb;
+    private readonly IProjectAuthorizationService _authorizationService;
+    private readonly IProjectRequestValidator _requestValidator;
     private readonly IProjectScopeSyncPublisher _scopeSyncPublisher;
     private readonly ILogger<ProjectManagementFunctions> _logger;
 
     public ProjectManagementFunctions(
         IProjectDBUtil projectDb,
+        IProjectAuthorizationService authorizationService,
+        IProjectRequestValidator requestValidator,
         IProjectScopeSyncPublisher scopeSyncPublisher,
         ILogger<ProjectManagementFunctions> logger)
     {
         _projectDb = projectDb;
+        _authorizationService = authorizationService;
+        _requestValidator = requestValidator;
         _scopeSyncPublisher = scopeSyncPublisher;
         _logger = logger;
     }
@@ -32,13 +39,31 @@ public sealed class ProjectManagementFunctions
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "projects/{tenantId}")] HttpRequestData req,
         string tenantId)
     {
-        var request = await ReadBodyAsync<ProjectCreateRequest>(req);
-        if (request == null || string.IsNullOrWhiteSpace(tenantId) || string.IsNullOrWhiteSpace(request.ProjectName))
+        var authFailure = await EnsureCreateAuthorizationAsync(req, tenantId);
+        if (authFailure != null)
         {
-            return await Json(req, HttpStatusCode.BadRequest, "tenantId and projectName are required.");
+            return authFailure;
         }
 
+        var request = await ReadBodyAsync<ProjectCreateRequest>(req);
+        if (!_requestValidator.IsValid(request, tenantId))
+        {
+            return await Json(
+                req,
+                HttpStatusCode.BadRequest,
+                "Project name, canonical type, Market Code, at least one manager, valid unique people, and unique non-empty scopes are required.");
+        }
+        ArgumentNullException.ThrowIfNull(request);
+
         var now = DateTime.UtcNow;
+        var managers = request.Managers
+            .Select(email => email.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var members = request.Members
+            .Select(email => email.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var project = new TaskProject
         {
             Id = Guid.NewGuid().ToString(),
@@ -46,10 +71,21 @@ public sealed class ProjectManagementFunctions
             ProjectNames = request.ProjectName.Trim(),
             projectdescription = request.ProjectDescription.Trim(),
             projecttype = request.ProjectType.Trim(),
+            marketcode = request.MarketCode.Trim().ToUpperInvariant(),
             projectstatus = string.IsNullOrWhiteSpace(request.ProjectStatus) ? "Active" : request.ProjectStatus.Trim(),
             ExtProjectID = request.ExtProjectId.Trim(),
             datecreated = now,
-            lastmodifieddate = now
+            lastmodifieddate = now,
+            associatedpeople = members.Select(email => BuildAssociatedPerson(email, "Person")).ToList(),
+            associatedmanagers = managers.Select(email => BuildAssociatedPerson(email, "Manager")).ToList(),
+            projectscopes = request.Scopes.Select(scope => new ProjectScope
+            {
+                scopeid = string.IsNullOrWhiteSpace(scope.ScopeId) ? Guid.NewGuid().ToString() : scope.ScopeId.Trim(),
+                projectscopeareatitle = scope.ProjectScopeAreaTitle.Trim(),
+                projectscopearea = scope.ProjectScopeArea.Trim(),
+                projectscopeareaembeddings = scope.ProjectScopeAreaEmbeddings?.ToList() ?? new List<float>(),
+                isarchived = false
+            }).ToList()
         };
 
         try
@@ -59,38 +95,34 @@ public sealed class ProjectManagementFunctions
                 return await Json(req, HttpStatusCode.BadRequest, "Could not create project.");
             }
 
-            var managers = request.Managers.ToList();
-            var callerManager = GetCallerManagerEmail(req);
-            if (!string.IsNullOrWhiteSpace(callerManager)
-                && !managers.Contains(callerManager, StringComparer.OrdinalIgnoreCase))
+            await _scopeSyncPublisher.PublishAsync(new ProjectScopeSyncPayload
             {
-                managers.Add(callerManager);
-            }
-
-            if (request.Members.Any() || managers.Any())
-            {
-                await _projectDb.PatchProjectAssociationsAsync(
-                    tenantId,
-                    project.Id,
-                    new ProjectAssociationPatchRequest { Members = request.Members, Managers = managers });
-            }
-
-            if (request.Scopes.Any())
-            {
-                var scopeResult = await _projectDb.PatchProjectScopesAsync(
-                    tenantId,
-                    project.Id,
-                    new ProjectScopePatchRequest { Scopes = request.Scopes });
-                await _scopeSyncPublisher.PublishAsync(scopeResult.ScopeSync);
-            }
+                TenantId = tenantId,
+                ProjectId = project.Id,
+                GeneratedAtUtc = now,
+                Added = project.projectscopes.Select(BuildScopeSyncItem).ToList()
+            });
 
             var detail = await _projectDb.GetProjectDetailAsync(tenantId, project.Id);
             return await Json(req, HttpStatusCode.OK, detail);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Project creation failed. TenantId={TenantId}", tenantId);
-            return await Json(req, HttpStatusCode.BadRequest, ex.Message);
+            var correlationId = Guid.NewGuid().ToString();
+            _logger.LogError(
+                ex,
+                "Project creation failed. TenantId={TenantId}, CorrelationId={CorrelationId}",
+                tenantId,
+                correlationId);
+            return await Json(req, HttpStatusCode.BadRequest, new ApiErrorResponse
+            {
+                Error = new ApiError
+                {
+                    Code = "PROJECT_CREATE_FAILED",
+                    Message = "Project creation failed.",
+                    CorrelationId = correlationId
+                }
+            });
         }
     }
 
@@ -202,16 +234,23 @@ public sealed class ProjectManagementFunctions
         string tenantId,
         string projectId)
     {
-        var managerEmail = GetCallerManagerEmail(req);
-        if (string.IsNullOrWhiteSpace(managerEmail))
+        ProjectAuthContext auth;
+        try
         {
-            return await Json(
-                req,
-                HttpStatusCode.Unauthorized,
-                "Manager email is required. Provide x-user-email header or managerEmail query parameter.");
+            auth = _authorizationService.Resolve(ToDictionary(req));
+            _authorizationService.EnsureCanManage(auth, tenantId);
+        }
+        catch (ProjectAuthorizationException ex)
+        {
+            _logger.LogWarning(
+                "Project management authorization rejected. TenantId={TenantId}, Status={Status}, Code={Code}.",
+                tenantId,
+                (int)ex.StatusCode,
+                ex.Code);
+            return await AuthorizationError(req, ex);
         }
 
-        if (!await _projectDb.IsManagerForProjectAsync(tenantId, projectId, managerEmail))
+        if (!await _projectDb.IsManagerForProjectAsync(tenantId, projectId, auth.Email))
         {
             return await Json(req, HttpStatusCode.Forbidden, "Caller is not authorized to edit this project.");
         }
@@ -219,16 +258,46 @@ public sealed class ProjectManagementFunctions
         return null;
     }
 
-    private static string? GetCallerManagerEmail(HttpRequestData req)
+    private async Task<HttpResponseData?> EnsureCreateAuthorizationAsync(HttpRequestData req, string tenantId)
     {
-        var header = GetHeader(req, "x-user-email") ?? GetHeader(req, "x-manager-email");
-        if (!string.IsNullOrWhiteSpace(header))
+        try
         {
-            return header.Trim();
+            var auth = _authorizationService.Resolve(ToDictionary(req));
+            _authorizationService.EnsureCanCreate(auth, tenantId);
+            return null;
         }
-
-        return GetQueryValue(req, "managerEmail") ?? GetQueryValue(req, "userEmail");
+        catch (ProjectAuthorizationException ex)
+        {
+            _logger.LogWarning(
+                "Project creation authorization rejected. TenantId={TenantId}, Status={Status}, Code={Code}.",
+                tenantId,
+                (int)ex.StatusCode,
+                ex.Code);
+            return await AuthorizationError(req, ex);
+        }
     }
+
+    private static AssociatedPeople BuildAssociatedPerson(string email, string role)
+    {
+        var localPart = email.Split('@').FirstOrDefault() ?? string.Empty;
+        return new AssociatedPeople
+        {
+            associatedpersonid = Guid.NewGuid(),
+            personemail = email,
+            personname = localPart.Replace('.', ' ').Replace('_', ' ').Trim(),
+            role = role
+        };
+    }
+
+    private static ProjectScopeSyncItem BuildScopeSyncItem(ProjectScope scope)
+        => new()
+        {
+            ScopeId = scope.scopeid,
+            ProjectScopeAreaTitle = scope.projectscopeareatitle,
+            ProjectScopeArea = scope.projectscopearea,
+            ProjectScopeAreaEmbeddings = scope.projectscopeareaembeddings.ToList(),
+            GroupTaskSetId = scope.grouptasksetid ?? string.Empty
+        };
 
     private static async Task<T?> ReadBodyAsync<T>(HttpRequestData req) where T : class
     {
@@ -245,21 +314,25 @@ public sealed class ProjectManagementFunctions
         return response;
     }
 
-    private static string? GetHeader(HttpRequestData req, string name)
-        => req.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
-
-    private static string? GetQueryValue(HttpRequestData req, string name)
-    {
-        foreach (var part in req.Url.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+    private static Task<HttpResponseData> AuthorizationError(HttpRequestData req, ProjectAuthorizationException ex)
+        => Json(req, ex.StatusCode, new ApiErrorResponse
         {
-            var pair = part.Split('=', 2);
-            if (pair.Length > 0
-                && string.Equals(Uri.UnescapeDataString(pair[0]), name, StringComparison.OrdinalIgnoreCase))
+            Error = new ApiError
             {
-                return pair.Length == 2 ? Uri.UnescapeDataString(pair[1].Replace('+', ' ')).Trim() : string.Empty;
+                Code = ex.Code,
+                Message = ex.Message,
+                CorrelationId = Guid.NewGuid().ToString()
             }
+        });
+
+    private static Dictionary<string, string> ToDictionary(HttpRequestData req)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var header in req.Headers)
+        {
+            headers[header.Key] = header.Value.FirstOrDefault() ?? string.Empty;
         }
 
-        return null;
+        return headers;
     }
 }

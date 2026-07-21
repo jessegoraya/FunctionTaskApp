@@ -17,6 +17,9 @@ namespace Taslow.Shared.Model
         [JsonProperty("projectType")]
         public string ProjectType { get; set; } = string.Empty;
 
+        [JsonProperty("marketCode")]
+        public string MarketCode { get; set; } = string.Empty;
+
         [JsonProperty("projectStatus")]
         public string ProjectStatus { get; set; } = string.Empty;
 

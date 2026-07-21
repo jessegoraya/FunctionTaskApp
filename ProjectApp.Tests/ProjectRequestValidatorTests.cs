@@ -9,6 +9,34 @@ public class ProjectRequestValidatorTests
     private readonly ProjectRequestValidator _validator = new();
 
     [Fact]
+    public void CreateRequest_ShouldRequireCompleteAtomicProjectDefinition()
+    {
+        var request = new ProjectCreateRequest
+        {
+            ProjectName = "BloomSky Launch",
+            ProjectType = ProjectTypes.Delivery,
+            MarketCode = "COMM",
+            Managers = new List<string> { "manager@bloomsky.onmicrosoft.com" },
+            Members = new List<string> { "member@bloomsky.onmicrosoft.com" },
+            Scopes = new List<ProjectScopePatchItem>
+            {
+                new() { ProjectScopeArea = "Launch readiness" }
+            }
+        };
+
+        Assert.True(_validator.IsValid(request, "tenant-a"));
+
+        request.Managers.Clear();
+        Assert.False(_validator.IsValid(request, "tenant-a"));
+        request.Managers.Add("manager@bloomsky.onmicrosoft.com");
+        request.Members.Add("MANAGER@bloomsky.onmicrosoft.com");
+        Assert.False(_validator.IsValid(request, "tenant-a"));
+        request.Members.RemoveAt(request.Members.Count - 1);
+        request.TenantId = "tenant-b";
+        Assert.False(_validator.IsValid(request, "tenant-a"));
+    }
+
+    [Fact]
     public void BatchRequest_ShouldRequireTenantAndProjectIds()
     {
         Assert.False(_validator.IsValid((ProjectBatchRequest?)null));

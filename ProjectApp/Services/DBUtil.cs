@@ -137,6 +137,7 @@ namespace Taslow.Project.DAL
                 ProjectName = project.ProjectNames,
                 ProjectDescription = project.projectdescription,
                 ProjectType = project.projecttype,
+                MarketCode = project.marketcode,
                 ProjectStatus = project.projectstatus,
                 TenantId = project.tenantid,
                 ExtProjectId = project.ExtProjectID,
@@ -545,6 +546,11 @@ namespace Taslow.Project.DAL
             if (request.ProjectType != null)
             {
                 project.projecttype = request.ProjectType.Trim();
+            }
+
+            if (request.MarketCode != null)
+            {
+                project.marketcode = request.MarketCode.Trim().ToUpperInvariant();
             }
 
             if (request.ProjectStatus != null)
