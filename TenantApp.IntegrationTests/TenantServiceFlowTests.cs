@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Taslow.Shared.Model;
 using Taslow.Tenant.DAL.Interface;
 using Taslow.Tenant.Model;
@@ -20,7 +21,7 @@ namespace TenantApp.IntegrationTests
         {
             ITenantRepository repository = new InMemoryTenantRepository();
             ITenantValidationService validation = new TenantValidationService();
-            ITenantAuthorizationService authorization = new TenantAuthorizationService();
+            ITenantAuthorizationService authorization = CreateAuthorizationService();
             ITenantService service = new TenantService(repository, validation, authorization);
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
@@ -44,7 +45,7 @@ namespace TenantApp.IntegrationTests
         {
             ITenantRepository repository = new InMemoryTenantRepository();
             ITenantValidationService validation = new TenantValidationService();
-            ITenantAuthorizationService authorization = new TenantAuthorizationService();
+            ITenantAuthorizationService authorization = CreateAuthorizationService();
             ITenantService service = new TenantService(repository, validation, authorization);
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
@@ -73,7 +74,7 @@ namespace TenantApp.IntegrationTests
         {
             ITenantRepository repository = new InMemoryTenantRepository();
             ITenantValidationService validation = new TenantValidationService();
-            ITenantAuthorizationService authorization = new TenantAuthorizationService();
+            ITenantAuthorizationService authorization = CreateAuthorizationService();
             ITenantService service = new TenantService(repository, validation, authorization);
 
             var auth = new TenantAuthContext { Role = TenantRoles.TaslowAdmin };
@@ -129,6 +130,20 @@ namespace TenantApp.IntegrationTests
                 MailingPostalCode = "22201",
                 MailingCountryCode = "US"
             };
+        }
+
+        private static ITenantAuthorizationService CreateAuthorizationService()
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Auth:Environment"] = TaslowEnvironments.Test,
+                    ["Auth:JwtSigningKey"] = "taslow-test-integration-signing-key-for-tests"
+                })
+                .Build();
+            return new TenantAuthorizationService(
+                new TaslowJwtService(configuration),
+                configuration);
         }
     }
 
