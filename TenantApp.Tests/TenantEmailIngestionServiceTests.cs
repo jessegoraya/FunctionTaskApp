@@ -126,19 +126,13 @@ namespace TenantApp.Tests
             ITenantEmailQueueClient queueClient,
             IEmailExtractionClient extractionClient)
         {
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["TenantEmailIngestionPilotMailbox"] = "jesse@foray.onmicrosoft.com"
-                })
-                .Build();
-
             return new TenantEmailIngestionService(
                 tenantRepository,
                 stateRepository,
                 queueClient,
+                new FakeGraphMessageClient(),
                 extractionClient,
-                configuration,
+                new FakeTaskWriteClient(),
                 NullLogger<TenantEmailIngestionService>.Instance);
         }
 
@@ -181,7 +175,14 @@ namespace TenantApp.Tests
                         Enabled = true,
                         EmailIngestionEnabled = enabled
                     },
-                    MailboxStates = new List<TenantMailboxStateDTO>(),
+                    MailboxStates = new List<TenantMailboxStateDTO>
+                    {
+                        new()
+                        {
+                            MailboxKey = "jesse@foray.onmicrosoft.com",
+                            Status = "active"
+                        }
+                    },
                     SubscriptionRegistry = new List<TenantSubscriptionRegistryItemDTO>()
                 }
             };
@@ -284,9 +285,32 @@ namespace TenantApp.Tests
 
             return Task.FromResult(new TenantEmailExtractionInvokeResponse
             {
-                PromptflowRunId = "run-123",
+                AgentRunId = "run-123",
+                Status = "tasks_ready",
                 TaskCandidateCount = 1
             });
+        }
+    }
+
+    internal class FakeGraphMessageClient : IMicrosoftGraphMessageClient
+    {
+        public Task<TenantEmailExtractionQueueMessage> HydrateAsync(
+            TenantEmailExtractionQueueMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(message);
+        }
+    }
+
+    internal class FakeTaskWriteClient : IEmailTaskWriteClient
+    {
+        public Task<int> WriteAsync(
+            TenantEmailExtractionQueueMessage message,
+            TenantEmailExtractionInvokeResponse extraction,
+            string correlationId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(extraction.Tasks.Count);
         }
     }
 }
