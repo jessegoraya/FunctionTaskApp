@@ -155,7 +155,7 @@ namespace Taslow.Tenant.Service
         {
             var baseEndpoint = GetApimEndpoint("TaskServiceEndpoint", "Task service");
             var endpoint = new Uri(
-                $"{baseEndpoint.AbsoluteUri.TrimEnd('/')}/grouptaskset/{Uri.EscapeDataString(groupTaskSetId)}/{Uri.EscapeDataString(tenantId)}");
+                $"{baseEndpoint.AbsoluteUri.TrimEnd('/')}/internal/tasks/group-task-exists/{Uri.EscapeDataString(tenantId)}/{Uri.EscapeDataString(groupTaskSetId)}/{groupTaskId:D}");
             var token = await _credential.GetTokenAsync(ProjectApiTokenContext, cancellationToken);
             using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
@@ -171,12 +171,10 @@ namespace Taslow.Tenant.Service
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             var payload = JObject.Parse(content);
-            var tasks = payload["GroupTask"] as JArray
-                ?? payload["grouptask"] as JArray
-                ?? new JArray();
-            return tasks.OfType<JObject>().Any(task =>
-                Guid.TryParse(task.Value<string>("GroupTaskID"), out var existingId)
-                && existingId == groupTaskId);
+            return payload.Value<bool?>("exists")
+                ?? throw new TenantEmailIngestionException(
+                    "Task idempotency preflight returned an invalid response.",
+                    isTransient: false);
         }
 
         private async Task<Dictionary<string, ProjectWriteContext>> ReadProjectContextAsync(

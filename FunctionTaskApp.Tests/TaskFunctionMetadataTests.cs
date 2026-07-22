@@ -16,6 +16,7 @@ namespace FunctionTaskApp.Tests
             AssertTrigger("Ping", AuthorizationLevel.Anonymous, "ping", "get");
             AssertTrigger("AddGroupTaskSet", AuthorizationLevel.Function, "grouptaskset", "post");
             AssertTrigger("GetGroupTaskSetById", AuthorizationLevel.Function, "grouptaskset/{id}/{tenantid}", "get");
+            AssertTrigger("GetInternalGroupTaskExistence", AuthorizationLevel.Function, "internal/tasks/group-task-exists/{tenantid}/{groupTaskSetId}/{groupTaskId}", "get");
             AssertTrigger("GetGroupTaskSetByProjectId", AuthorizationLevel.Function, "grouptasksetbyproject/{projectid}/{tenantid}", "get");
             AssertTrigger("GetGroupTaskSetsByProjectId", AuthorizationLevel.Function, "grouptasksetsbyproject/{projectid}/{tenantid}", "get");
             AssertTrigger("UpdateGroupTaskSet", AuthorizationLevel.Function, "grouptaskset/{id}/{tenantid}", "put");
@@ -39,7 +40,7 @@ namespace FunctionTaskApp.Tests
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public)
                 .Count(method => method.GetCustomAttribute<FunctionAttribute>() != null);
 
-            Assert.Equal(17, count);
+            Assert.Equal(18, count);
         }
 
         private static void AssertTrigger(

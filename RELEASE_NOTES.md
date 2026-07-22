@@ -1,5 +1,11 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.7
+
+- Restricts Project agent-context hydration and Task idempotency reads to an APIM-established internal email-ingestion workload marker.
+- Adds a read-minimal Task existence endpoint so the Tenant email runtime no longer retrieves an entire Group Task Set during duplicate detection.
+- Keeps the managed-identity bearer token on both internal APIM calls and adds regression coverage for exact marker, route, token, and duplicate behavior.
+
 ## v0.1.0-dev.6
 
 - Adds governed Tenant user catalog read/reconciliation endpoints for production-shaped directory onboarding.
