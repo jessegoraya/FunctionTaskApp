@@ -25,6 +25,11 @@ namespace TenantApp.Tests
 
             Assert.Equal(1, written);
             Assert.Equal("Bearer project-token", handler.ProjectAuthorization);
+            Assert.Equal("Bearer project-token", handler.TaskAuthorization);
+            Assert.Contains(
+                "/FunctionTaskApp/internal/tasks/group-task-exists/tenant-1/gts-1/",
+                handler.TaskRequestPath,
+                StringComparison.OrdinalIgnoreCase);
             Assert.NotNull(handler.LogicAppPayload);
             Assert.Equal("tenant-1", handler.LogicAppPayload!.Value<string>("TenantID"));
             Assert.Equal("gts-1", handler.LogicAppPayload.Value<string>("id"));
@@ -126,6 +131,8 @@ namespace TenantApp.Tests
         private sealed class RecordingHandler : HttpMessageHandler
         {
             public string? ProjectAuthorization { get; private set; }
+            public string? TaskAuthorization { get; private set; }
+            public string TaskRequestPath { get; private set; } = string.Empty;
             public JObject? LogicAppPayload { get; private set; }
             public string? ExistingGroupTaskId { get; set; }
             public int LogicAppRequestCount { get; private set; }
@@ -173,10 +180,18 @@ namespace TenantApp.Tests
                     "/FunctionTaskApp/",
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    var tasks = string.IsNullOrWhiteSpace(ExistingGroupTaskId)
-                        ? Array.Empty<object>()
-                        : new object[] { new { GroupTaskID = ExistingGroupTaskId } };
-                    return Json(HttpStatusCode.OK, new { GroupTask = tasks });
+                    TaskAuthorization = request.Headers.Authorization?.ToString();
+                    TaskRequestPath = request.RequestUri.AbsolutePath;
+                    var requestedId = request.RequestUri.Segments.Last().Trim('/');
+                    return Json(
+                        HttpStatusCode.OK,
+                        new
+                        {
+                            exists = string.Equals(
+                                ExistingGroupTaskId,
+                                requestedId,
+                                StringComparison.OrdinalIgnoreCase)
+                        });
                 }
 
                 LogicAppPayload = JObject.Parse(

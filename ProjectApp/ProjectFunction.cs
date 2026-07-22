@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Taslow.Project.Model;
 using Taslow.Project.Service.Interface;
 using Taslow.Shared.Model;
+using Taslow.Shared.Security;
 
 namespace Taslow.Project.Function;
 
@@ -117,6 +118,12 @@ public sealed class ProjectTaskController
     public async Task<HttpResponseData> GetProjectAgentContextBatch(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "internal/projects/agent-context/batch")] HttpRequestData req)
     {
+        if (!WorkloadRequestAuthorizer.IsEmailIngestionAuthorized(
+            GetHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+        {
+            return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
+
         var request = await ReadBodyAsync<ProjectAgentContextRequest>(req);
         if (!_validator.IsValid(request))
         {

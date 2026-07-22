@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Taslow.Shared.Model;
+using Taslow.Shared.Security;
 using Taslow.Task.Client.Interface;
 using Taslow.Task.DAL.Interface;
 using Taslow.Task.Model;
@@ -86,6 +87,41 @@ namespace Taslow.Task.Function
             return result != null
                 ? await JsonAsync(req, HttpStatusCode.OK, result)
                 : req.CreateResponse(HttpStatusCode.NotFound);
+        }
+
+        [Function("GetInternalGroupTaskExistence")]
+        public async Task<HttpResponseData> RunGetInternalGroupTaskExistenceAsync(
+            [HttpTrigger(
+                AuthorizationLevel.Function,
+                "get",
+                Route = "internal/tasks/group-task-exists/{tenantid}/{groupTaskSetId}/{groupTaskId}")] HttpRequestData req,
+            string tenantid,
+            string groupTaskSetId,
+            string groupTaskId)
+        {
+            if (!WorkloadRequestAuthorizer.IsEmailIngestionAuthorized(
+                FirstHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+            {
+                return req.CreateResponse(HttpStatusCode.Unauthorized);
+            }
+
+            if (string.IsNullOrWhiteSpace(tenantid)
+                || string.IsNullOrWhiteSpace(groupTaskSetId)
+                || !Guid.TryParse(groupTaskId, out var requestedGroupTaskId))
+            {
+                return await TextAsync(req, HttpStatusCode.BadRequest, "Valid tenant, Group Task Set, and Group Task identifiers are required.");
+            }
+
+            var taskSet = await _taskDb.GetGroupTaskSet(groupTaskSetId, tenantid);
+            if (taskSet == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var exists = (taskSet.grouptask ?? new List<GroupTask>()).Any(task =>
+                Guid.TryParse(task.grouptaskid, out var existingGroupTaskId)
+                && existingGroupTaskId == requestedGroupTaskId);
+            return await JsonAsync(req, HttpStatusCode.OK, new { exists });
         }
 
         [Function("GetGroupTaskSetByProjectId")]
