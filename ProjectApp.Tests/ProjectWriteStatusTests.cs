@@ -1,11 +1,23 @@
 using System.Net;
+using Newtonsoft.Json.Linq;
 using Taslow.Project.DAL;
+using Taslow.Project.Model;
 using Xunit;
 
 namespace ProjectApp.Tests;
 
 public sealed class ProjectWriteStatusTests
 {
+    [Fact]
+    public void TaskProject_SerializesTenantIdAtCosmosPartitionKeyPath()
+    {
+        const string tenantId = "tenant-a";
+        var document = JObject.FromObject(new TaskProject { tenantid = tenantId });
+
+        Assert.Equal(tenantId, document.Value<string>("tenantID"));
+        Assert.Null(document["TenantID"]);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.OK)]
     [InlineData(HttpStatusCode.Created)]
