@@ -25,11 +25,17 @@ namespace Taslow.Tenant.Model
         [JsonProperty("messageId")]
         public string MessageId { get; set; } = string.Empty;
 
+        [JsonProperty("subscriptionId")]
+        public string SubscriptionId { get; set; } = string.Empty;
+
         [JsonProperty("status")]
         public string Status { get; set; } = string.Empty;
 
-        [JsonProperty("promptflowRunId")]
-        public string? PromptflowRunId { get; set; }
+        [JsonProperty("agentRunId")]
+        public string? AgentRunId { get; set; }
+
+        [JsonProperty("taskWriteCount")]
+        public int TaskWriteCount { get; set; }
 
         [JsonProperty("lastError")]
         public string? LastError { get; set; }

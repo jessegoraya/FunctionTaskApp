@@ -756,6 +756,9 @@ namespace Taslow.Shared.Model
         [JsonProperty("subscription_id")]
         public string SubscriptionId { get; set; } = string.Empty;
 
+        [JsonProperty("mailbox_key")]
+        public string? MailboxKey { get; set; }
+
         [JsonProperty("provider")]
         public string Provider { get; set; } = IntegrationProviders.Graph;
 

@@ -1,5 +1,4 @@
 using System.Net;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Taslow.Shared.Model;
 using Taslow.Tenant.DAL.Interface;
@@ -13,23 +12,26 @@ namespace Taslow.Tenant.Service
         private readonly ITenantRepository _tenantRepository;
         private readonly ITenantEmailIngestionStateRepository _stateRepository;
         private readonly ITenantEmailQueueClient _queueClient;
+        private readonly IMicrosoftGraphMessageClient _graphMessageClient;
         private readonly IEmailExtractionClient _extractionClient;
-        private readonly IConfiguration _configuration;
+        private readonly IEmailTaskWriteClient _taskWriteClient;
         private readonly ILogger<TenantEmailIngestionService> _logger;
 
         public TenantEmailIngestionService(
             ITenantRepository tenantRepository,
             ITenantEmailIngestionStateRepository stateRepository,
             ITenantEmailQueueClient queueClient,
+            IMicrosoftGraphMessageClient graphMessageClient,
             IEmailExtractionClient extractionClient,
-            IConfiguration configuration,
+            IEmailTaskWriteClient taskWriteClient,
             ILogger<TenantEmailIngestionService> logger)
         {
             _tenantRepository = tenantRepository;
             _stateRepository = stateRepository;
             _queueClient = queueClient;
+            _graphMessageClient = graphMessageClient;
             _extractionClient = extractionClient;
-            _configuration = configuration;
+            _taskWriteClient = taskWriteClient;
             _logger = logger;
         }
 
@@ -39,12 +41,6 @@ namespace Taslow.Tenant.Service
             CancellationToken cancellationToken = default)
         {
             ValidateRequest(request);
-
-            var pilotMailbox = (_configuration["TenantEmailIngestionPilotMailbox"] ?? "jesse@foray.onmicrosoft.com").Trim();
-            if (!request.Mailbox.Equals(pilotMailbox, StringComparison.OrdinalIgnoreCase))
-            {
-                return BuildIgnored(request, "mailbox_not_in_pilot_scope");
-            }
 
             var (tenant, _) = await _tenantRepository.GetByIdAsync(request.TenantId, cancellationToken);
             if (tenant == null)
@@ -63,10 +59,20 @@ namespace Taslow.Tenant.Service
                 return BuildIgnored(request, "email_ingestion_disabled");
             }
 
+            var mailboxAllowed = (tenant.EmailIntegration.MailboxStates ?? new List<TenantMailboxStateDTO>())
+                .Any(item => item.Status.Equals("active", StringComparison.OrdinalIgnoreCase)
+                    && item.MailboxKey.Equals(request.Mailbox, StringComparison.OrdinalIgnoreCase));
+            if (!mailboxAllowed)
+            {
+                return BuildIgnored(request, "mailbox_not_allow_listed");
+            }
+
             var idempotencyKey = TenantEmailIdempotencyKeyBuilder.Build(
                 request.TenantId,
                 request.Mailbox,
-                request.InternetMessageId,
+                string.IsNullOrWhiteSpace(request.InternetMessageId)
+                    ? request.MessageId
+                    : request.InternetMessageId,
                 request.Direction);
 
             var now = DateTime.UtcNow.ToString("O");
@@ -79,6 +85,7 @@ namespace Taslow.Tenant.Service
                 GraphEventId = request.GraphEventId,
                 InternetMessageId = request.InternetMessageId,
                 MessageId = request.MessageId,
+                SubscriptionId = request.SubscriptionId,
                 Status = TenantEmailIngestionStatus.Queued,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -110,6 +117,7 @@ namespace Taslow.Tenant.Service
                 GraphEventId = request.GraphEventId,
                 InternetMessageId = request.InternetMessageId,
                 MessageId = request.MessageId,
+                SubscriptionId = request.SubscriptionId,
                 Subject = request.Subject,
                 BodyText = request.BodyText,
                 IdempotencyKey = idempotencyKey,
@@ -156,20 +164,31 @@ namespace Taslow.Tenant.Service
         {
             try
             {
-                var extractionResult = await _extractionClient.InvokeAsync(message, correlationId, cancellationToken);
+                var hydratedMessage = await _graphMessageClient.HydrateAsync(message, cancellationToken);
+                var extractionResult = await _extractionClient.InvokeAsync(
+                    hydratedMessage,
+                    correlationId,
+                    cancellationToken);
+                var taskWriteCount = await _taskWriteClient.WriteAsync(
+                    hydratedMessage,
+                    extractionResult,
+                    correlationId,
+                    cancellationToken);
                 await UpdateStateRecordAsync(
                     message.IdempotencyKey,
                     TenantEmailIngestionStatus.Processed,
-                    extractionResult.PromptflowRunId,
+                    extractionResult.AgentRunId,
+                    taskWriteCount,
                     null,
                     cancellationToken);
 
                 _logger.LogInformation(
-                    "Email extraction processed. tenantId={TenantId} mailbox={Mailbox} graphEventId={GraphEventId} promptflowRunId={PromptflowRunId}",
+                    "Email extraction processed. tenantId={TenantId} mailbox={Mailbox} graphEventId={GraphEventId} agentRunId={AgentRunId} taskWriteCount={TaskWriteCount}",
                     message.TenantId,
                     message.Mailbox,
                     message.GraphEventId,
-                    extractionResult.PromptflowRunId ?? string.Empty);
+                    extractionResult.AgentRunId ?? string.Empty,
+                    taskWriteCount);
             }
             catch (TenantEmailIngestionException ex)
             {
@@ -186,6 +205,7 @@ namespace Taslow.Tenant.Service
                 await UpdateStateRecordAsync(
                     message.IdempotencyKey,
                     TenantEmailIngestionStatus.Failed,
+                    null,
                     null,
                     ex.Message,
                     cancellationToken);
@@ -212,6 +232,7 @@ namespace Taslow.Tenant.Service
                     message.IdempotencyKey,
                     TenantEmailIngestionStatus.Failed,
                     null,
+                    null,
                     ex.Message,
                     cancellationToken);
 
@@ -226,7 +247,8 @@ namespace Taslow.Tenant.Service
         private async Task UpdateStateRecordAsync(
             string idempotencyKey,
             string status,
-            string? promptflowRunId,
+            string? agentRunId,
+            int? taskWriteCount,
             string? lastError,
             CancellationToken cancellationToken)
         {
@@ -237,7 +259,8 @@ namespace Taslow.Tenant.Service
             }
 
             record.Status = status;
-            record.PromptflowRunId = promptflowRunId ?? record.PromptflowRunId;
+            record.AgentRunId = agentRunId ?? record.AgentRunId;
+            record.TaskWriteCount = taskWriteCount ?? record.TaskWriteCount;
             record.LastError = lastError;
             record.UpdatedAt = DateTime.UtcNow.ToString("O");
             await _stateRepository.UpsertAsync(record, cancellationToken);
@@ -284,21 +307,6 @@ namespace Taslow.Tenant.Service
             if (string.IsNullOrWhiteSpace(request.MessageId))
             {
                 throw new TenantApiException(HttpStatusCode.BadRequest, TenantErrorCodes.ValidationFailed, "messageId is required.");
-            }
-
-            if (string.IsNullOrWhiteSpace(request.InternetMessageId))
-            {
-                throw new TenantApiException(HttpStatusCode.BadRequest, TenantErrorCodes.ValidationFailed, "internetMessageId is required.");
-            }
-
-            if (request.Subject == null)
-            {
-                throw new TenantApiException(HttpStatusCode.BadRequest, TenantErrorCodes.ValidationFailed, "subject is required.");
-            }
-
-            if (request.BodyText == null)
-            {
-                throw new TenantApiException(HttpStatusCode.BadRequest, TenantErrorCodes.ValidationFailed, "bodyText is required.");
             }
 
             if (string.IsNullOrWhiteSpace(request.Direction))
