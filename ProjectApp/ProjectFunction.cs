@@ -163,11 +163,11 @@ public sealed class ProjectTaskController
 
     [Function("LinkProjectScopeGroupTaskSets")]
     public async Task<HttpResponseData> LinkProjectScopeGroupTaskSets(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "projects/{tenantId}/{projectId}/scopes/link-gts")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "projects/{tenantId}/{projectId}/scopes/link-gts")] HttpRequestData req,
         string tenantId,
         string projectId)
     {
-        var expectedSecret = _configuration["ProjectScopeLinkCallbackFunctionKey"];
+        var expectedSecret = _configuration["ScopeSyncCallbackSecret"];
         var providedSecret = GetHeader(req, "x-scope-sync-secret");
         if (!_validator.IsCallbackAuthorized(expectedSecret, providedSecret))
         {

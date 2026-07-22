@@ -59,17 +59,25 @@ namespace Taslow.Project.Service
             var resolvedCallbackUrl = callbackUrl;
             if (!string.IsNullOrWhiteSpace(callbackBaseUrl))
             {
-                resolvedCallbackUrl = $"{callbackBaseUrl.TrimEnd('/')}/projects/{payload.TenantId}/{payload.ProjectId}/scopes/link-gts";
-                if (!string.IsNullOrWhiteSpace(callbackFunctionKey))
+                if (string.IsNullOrWhiteSpace(callbackFunctionKey))
                 {
-                    resolvedCallbackUrl = $"{resolvedCallbackUrl}?code={Uri.EscapeDataString(callbackFunctionKey)}";
+                    _logger.LogWarning("Project scope callback Function key is not configured.");
+                    return false;
                 }
+
+                resolvedCallbackUrl = $"{callbackBaseUrl.TrimEnd('/')}/projects/{payload.TenantId}/{payload.ProjectId}/scopes/link-gts";
+                resolvedCallbackUrl = $"{resolvedCallbackUrl}?code={Uri.EscapeDataString(callbackFunctionKey)}";
             }
             var callbackSecret = _configuration["ScopeSyncCallbackSecret"];
             if (string.IsNullOrWhiteSpace(resolvedCallbackUrl))
             {
                 _logger.LogWarning(
                     "Project scope callback URL is not configured. Set ProjectScopeLinkCallbackBaseUrl or ProjectScopeLinkCallbackUrl.");
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(callbackSecret))
+            {
+                _logger.LogWarning("Project scope callback shared secret is not configured.");
                 return false;
             }
             var orchestrationRunId = Guid.NewGuid().ToString();
