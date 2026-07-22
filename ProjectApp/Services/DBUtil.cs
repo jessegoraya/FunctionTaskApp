@@ -186,8 +186,11 @@ namespace Taslow.Project.DAL
         {
             //item.Id ??= Guid.NewGuid().ToString();
             ItemResponse<TaskProject> response = await Container.CreateItemAsync(item, new PartitionKey(item.tenantid));
-            return response.StatusCode == System.Net.HttpStatusCode.OK;
+            return IsSuccessfulWriteStatus(response.StatusCode);
         }
+
+        internal static bool IsSuccessfulWriteStatus(HttpStatusCode statusCode)
+            => (int)statusCode is >= 200 and < 300;
 
 
         public async Task<Dictionary<string, TaskProject>> GetProjectDatabyProjectIDList(List<string> projectIds, string tenantid)

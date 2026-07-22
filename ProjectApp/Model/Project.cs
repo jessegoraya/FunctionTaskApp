@@ -65,8 +65,8 @@ namespace Taslow.Project.Model
         public DateTime lastmodifieddate { get; set; }
 
         //associated tenant with the project
-        [JsonProperty(PropertyName = "TenantID")]
-        //CosmosDB stores tenant id as "tenantID in Partiion Key settings and JSON for items
+        [JsonProperty(PropertyName = "tenantID")]
+        // Cosmos DB stores the tenant id at the case-sensitive /tenantID partition-key path.
         public string tenantid { get; set; } = string.Empty;
     }
 
