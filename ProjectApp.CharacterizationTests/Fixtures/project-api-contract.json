@@ -38,7 +38,7 @@
   {
     "functionName": "LinkProjectScopeGroupTaskSets",
     "route": "projects/{tenantId}/{projectId}/scopes/link-gts",
-    "authorizationLevel": "Anonymous",
+    "authorizationLevel": "Function",
     "methods": ["patch"]
   },
   {
