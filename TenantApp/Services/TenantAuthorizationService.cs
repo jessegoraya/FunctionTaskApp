@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Configuration;
 using Taslow.Shared.Model;
 using Taslow.Tenant.Model;
 using Taslow.Tenant.Service.Interface;
@@ -7,12 +8,29 @@ namespace Taslow.Tenant.Service
 {
     public class TenantAuthorizationService : ITenantAuthorizationService
     {
+        private readonly ITaslowJwtService _jwtService;
+        private readonly IConfiguration _configuration;
+
+        public TenantAuthorizationService(
+            ITaslowJwtService jwtService,
+            IConfiguration configuration)
+        {
+            _jwtService = jwtService;
+            _configuration = configuration;
+        }
+
         public TenantAuthContext ResolveAuthContext(IDictionary<string, string> headers, bool allowDevHeaders)
         {
             var trustedContext = ResolveTrustedHeaderContext(headers);
             if (trustedContext != null)
             {
                 return trustedContext;
+            }
+
+            var accessToken = ExtractBearerToken(headers) ?? ExtractCookieToken(headers);
+            if (!string.IsNullOrWhiteSpace(accessToken))
+            {
+                return _jwtService.ValidateToken(accessToken);
             }
 
             headers.TryGetValue("x-taslow-dev-role", out var role);
@@ -70,6 +88,42 @@ namespace Taslow.Tenant.Service
                 Impersonated = true,
                 Roles = new List<string> { role.ToLowerInvariant() }
             };
+        }
+
+        private static string? ExtractBearerToken(IDictionary<string, string> headers)
+        {
+            if (!headers.TryGetValue("Authorization", out var authorization)
+                || string.IsNullOrWhiteSpace(authorization))
+            {
+                return null;
+            }
+
+            const string prefix = "Bearer ";
+            return authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? authorization[prefix.Length..].Trim()
+                : null;
+        }
+
+        private string? ExtractCookieToken(IDictionary<string, string> headers)
+        {
+            if (!headers.TryGetValue("Cookie", out var cookieHeader)
+                || string.IsNullOrWhiteSpace(cookieHeader))
+            {
+                return null;
+            }
+
+            var cookieName = _configuration["Auth:CookieName"] ?? "taslow_auth";
+            foreach (var cookie in cookieHeader.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var pair = cookie.Split('=', 2);
+                if (pair.Length == 2
+                    && pair[0].Trim().Equals(cookieName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return pair[1].Trim();
+                }
+            }
+
+            return null;
         }
 
         private static TenantAuthContext? ResolveTrustedHeaderContext(IDictionary<string, string> headers)
