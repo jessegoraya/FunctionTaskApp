@@ -198,6 +198,18 @@ namespace FunctionTaskApp.IntegrationTests
             public Task<bool> DeleteGroupTaskSet(string id, string tenantid) => throw new NotSupportedException();
             public Task<bool> CreateGroupTaskAsync(string id, string tenantid, GroupTask newGroupTask) => throw new NotSupportedException();
             public Task<bool> UpdateGroupTaskAsync(string id, string tenantid, GroupTask updGT) => throw new NotSupportedException();
+            public Task<bool> DeleteGroupTaskAsync(string id, string tenantid, string groupTaskId)
+            {
+                var taskSet = _items.FirstOrDefault(item => item.id == id && item.tenantid == tenantid);
+                var task = taskSet?.grouptask?.FirstOrDefault(item => item.grouptaskid == groupTaskId);
+                if (task == null)
+                {
+                    return Task.FromResult(false);
+                }
+
+                taskSet.grouptask.Remove(task);
+                return Task.FromResult(true);
+            }
             public Task<bool> CreateIndividualTaskAsync(string id, string tenantid, string gtid, IndividualTask newIndividualTask) => throw new NotSupportedException();
             public Task<bool> UpdateIndividualTaskAsync(string id, string tenantid, string grouptaskid, UpdateIndividualTaskDTO updIT) => throw new NotSupportedException();
 

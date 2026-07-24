@@ -1,5 +1,11 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.8
+
+- Adds read-minimal ingestion and task evidence operations for the governed BloomSky email-to-task campaign.
+- Requires a distinct APIM-established Test runner marker so deployment and email-runtime identities cannot use the campaign control plane.
+- Adds deterministic, source-checked removal of only the Group Tasks created by a campaign while retaining ingestion-state audit records.
+
 ## v0.1.0-dev.7
 
 - Restricts Project agent-context hydration and Task idempotency reads to an APIM-established internal email-ingestion workload marker.

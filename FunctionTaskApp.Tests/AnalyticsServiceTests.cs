@@ -188,6 +188,7 @@ namespace FunctionTaskApp.Tests
             public Task<bool> DeleteGroupTaskSet(string id, string tenantid) => throw new NotSupportedException();
             public Task<bool> CreateGroupTaskAsync(string id, string tenantid, GroupTask newGroupTask) => throw new NotSupportedException();
             public Task<bool> UpdateGroupTaskAsync(string id, string tenantid, GroupTask updGT) => throw new NotSupportedException();
+            public Task<bool> DeleteGroupTaskAsync(string id, string tenantid, string groupTaskId) => throw new NotSupportedException();
             public Task<bool> CreateIndividualTaskAsync(string id, string tenantid, string gtid, IndividualTask newIndividualTask) => throw new NotSupportedException();
             public Task<bool> UpdateIndividualTaskAsync(string id, string tenantid, string grouptaskid, UpdateIndividualTaskDTO updIT) => throw new NotSupportedException();
             public Task<bool> MoveIndividualTaskAsync(string tenantid, MoveIndividualTaskDTO moveIT) => throw new NotSupportedException();

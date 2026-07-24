@@ -26,6 +26,10 @@ public interface ITaskDBUtil
 
     Task<bool> CreateGroupTaskAsync(string id, string tenantid, GroupTask newGroupTask);
     Task<bool> UpdateGroupTaskAsync(string id, string tenantid, GroupTask updGT);
+    Task<bool> DeleteGroupTaskAsync(
+        string id,
+        string tenantid,
+        string groupTaskId);
 
     Task<bool> CreateIndividualTaskAsync(
         string id, string tenantid, string gtid, IndividualTask newIndividualTask);

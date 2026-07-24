@@ -124,6 +124,129 @@ namespace Taslow.Task.Function
             return await JsonAsync(req, HttpStatusCode.OK, new { exists });
         }
 
+        [Function("GetInternalEmailE2EGroupTaskEvidence")]
+        public async Task<HttpResponseData> RunGetInternalEmailE2EGroupTaskEvidenceAsync(
+            [HttpTrigger(
+                AuthorizationLevel.Function,
+                "get",
+                Route = "internal/email-e2e/tasks/{tenantid}/{groupTaskSetId}/{groupTaskId}/{idempotencyKey}")] HttpRequestData req,
+            string tenantid,
+            string groupTaskSetId,
+            string groupTaskId,
+            string idempotencyKey)
+        {
+            if (!WorkloadRequestAuthorizer.IsEmailE2ETestRunnerAuthorized(
+                FirstHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+            {
+                return req.CreateResponse(HttpStatusCode.Unauthorized);
+            }
+
+            if (!Guid.TryParse(groupTaskId, out var requestedGroupTaskId)
+                || !IsSha256(idempotencyKey))
+            {
+                return await TextAsync(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Valid Group Task and idempotency identifiers are required.");
+            }
+
+            var taskSet = await _taskDb.GetGroupTaskSet(groupTaskSetId, tenantid);
+            if (taskSet == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var task = (taskSet.grouptask ?? new List<GroupTask>()).SingleOrDefault(candidate =>
+                Guid.TryParse(candidate.grouptaskid, out var existingGroupTaskId)
+                && existingGroupTaskId == requestedGroupTaskId);
+            if (task == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var sourceMatches = HasCampaignSource(task, idempotencyKey);
+            var assignedPeople = (task.individualtasksets ?? new List<IndividualTaskSet>())
+                .SelectMany(set => set.individualtask ?? new List<IndividualTask>())
+                .Select(item => item.assignedperson)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var dueDates = (task.grouptaskduedate ?? new List<Taslow.Task.Model.GroupTaskDueDate>())
+                .Select(item => item.grouptaskduedate)
+                .ToList();
+
+            return await JsonAsync(req, HttpStatusCode.OK, new
+            {
+                exists = true,
+                sourceMatches,
+                tenantId = tenantid,
+                groupTaskSetId,
+                groupTaskId,
+                projectId = taskSet.caseid,
+                title = task.grouptasktitle,
+                status = task.grouptaskstatus,
+                type = task.grouptasktypeid,
+                dueDates,
+                assignedPeople,
+                task.createdby,
+                task.createddate,
+                protectedSourceFieldsIncluded = false
+            });
+        }
+
+        [Function("DeleteInternalEmailE2EGroupTask")]
+        public async Task<HttpResponseData> RunDeleteInternalEmailE2EGroupTaskAsync(
+            [HttpTrigger(
+                AuthorizationLevel.Function,
+                "delete",
+                Route = "internal/email-e2e/tasks/{tenantid}/{groupTaskSetId}/{groupTaskId}/{idempotencyKey}")] HttpRequestData req,
+            string tenantid,
+            string groupTaskSetId,
+            string groupTaskId,
+            string idempotencyKey)
+        {
+            if (!WorkloadRequestAuthorizer.IsEmailE2ETestRunnerAuthorized(
+                FirstHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+            {
+                return req.CreateResponse(HttpStatusCode.Unauthorized);
+            }
+
+            if (!Guid.TryParse(groupTaskId, out var requestedGroupTaskId)
+                || !IsSha256(idempotencyKey))
+            {
+                return await TextAsync(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    "Valid Group Task and idempotency identifiers are required.");
+            }
+
+            var taskSet = await _taskDb.GetGroupTaskSet(groupTaskSetId, tenantid);
+            var task = (taskSet?.grouptask ?? new List<GroupTask>()).SingleOrDefault(candidate =>
+                Guid.TryParse(candidate.grouptaskid, out var existingGroupTaskId)
+                && existingGroupTaskId == requestedGroupTaskId);
+            if (task == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            if (!HasCampaignSource(task, idempotencyKey)
+                || !string.Equals(
+                    task.createdby,
+                    "TaslowEmailExtractionAgent",
+                    StringComparison.Ordinal))
+            {
+                return req.CreateResponse(HttpStatusCode.Conflict);
+            }
+
+            var deleted = await _taskDb.DeleteGroupTaskAsync(
+                groupTaskSetId,
+                tenantid,
+                groupTaskId);
+            return deleted
+                ? req.CreateResponse(HttpStatusCode.NoContent)
+                : req.CreateResponse(HttpStatusCode.Conflict);
+        }
+
         [Function("GetGroupTaskSetByProjectId")]
         public async Task<HttpResponseData> RunGetGroupTaskSetByProjectIdAsync(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetbyproject/{projectid}/{tenantid}")] HttpRequestData req,
@@ -513,6 +636,22 @@ namespace Taslow.Task.Function
         {
             using var reader = new StreamReader(req.Body);
             return await reader.ReadToEndAsync();
+        }
+
+        private static bool HasCampaignSource(GroupTask task, string idempotencyKey)
+        {
+            return (task.groupetasknotes ?? string.Empty).Contains(
+                $"idempotencyKey={idempotencyKey}",
+                StringComparison.Ordinal);
+        }
+
+        private static bool IsSha256(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value)
+                && value.Length == 64
+                && value.All(character =>
+                    character is >= '0' and <= '9'
+                    || character is >= 'a' and <= 'f');
         }
 
         private static async Task<HttpResponseData> TextAsync(
