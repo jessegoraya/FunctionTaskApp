@@ -134,7 +134,8 @@ namespace Taslow.Tenant.Service
                 || !parsed.AbsolutePath.Contains("/versions/", StringComparison.OrdinalIgnoreCase)
                 || !parsed.AbsolutePath.EndsWith(
                     "/endpoint/protocols/invocations",
-                    StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase)
+                || !parsed.Query.Equals("?api-version=v1", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
