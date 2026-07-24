@@ -54,6 +54,20 @@ namespace TenantApp.Tests
             Assert.False(error.IsTransient);
         }
 
+        [Fact]
+        public async Task InvokeAsync_ShouldRejectEndpointWithoutFoundryApiVersion()
+        {
+            var client = CreateClient(
+                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/versions/7/endpoint/protocols/invocations",
+                new RecordingHandler(),
+                new RecordingTokenCredential());
+
+            var error = await Assert.ThrowsAsync<TenantEmailIngestionException>(() =>
+                client.InvokeAsync(new TenantEmailExtractionQueueMessage(), "corr-1"));
+
+            Assert.False(error.IsTransient);
+        }
+
         private static FoundryEmailExtractionClient CreateClient(
             string endpoint,
             HttpMessageHandler handler,
