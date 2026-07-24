@@ -7,6 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Taslow.Shared.Security;
+using Taslow.Tenant.DAL.Interface;
 using Taslow.Shared.Model;
 using Taslow.Tenant.Model;
 using Taslow.Tenant.Service.Interface;
@@ -23,17 +25,20 @@ namespace Taslow.Tenant.Function
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private readonly ITenantEmailIngestionService _emailIngestionService;
+        private readonly ITenantEmailIngestionStateRepository _stateRepository;
         private readonly IGraphNotificationValidator _notificationValidator;
         private readonly IConfiguration _configuration;
         private readonly ILogger<TenantEmailIngestionFunction> _logger;
 
         public TenantEmailIngestionFunction(
             ITenantEmailIngestionService emailIngestionService,
+            ITenantEmailIngestionStateRepository stateRepository,
             IGraphNotificationValidator notificationValidator,
             IConfiguration configuration,
             ILogger<TenantEmailIngestionFunction> logger)
         {
             _emailIngestionService = emailIngestionService;
+            _stateRepository = stateRepository;
             _notificationValidator = notificationValidator;
             _configuration = configuration;
             _logger = logger;
@@ -105,6 +110,68 @@ namespace Taslow.Tenant.Function
                     }
                 }, correlationId);
             }
+        }
+
+        [Function("GetInternalTenantEmailIngestionEvidence")]
+        public async Task<HttpResponseData> GetInternalTenantEmailIngestionEvidence(
+            [HttpTrigger(
+                AuthorizationLevel.Function,
+                "get",
+                Route = "internal/email-ingestion/evidence/{idempotencyKey}")] HttpRequestData req,
+            string idempotencyKey)
+        {
+            var correlationId = GetCorrelationId(req);
+            if (!WorkloadRequestAuthorizer.IsEmailE2ETestRunnerAuthorized(
+                FirstHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+            {
+                return await Json(
+                    req,
+                    HttpStatusCode.Unauthorized,
+                    new { error = "unauthorized" },
+                    correlationId);
+            }
+
+            if (!Regex.IsMatch(
+                idempotencyKey ?? string.Empty,
+                "^[a-f0-9]{64}$",
+                RegexOptions.CultureInvariant))
+            {
+                return await Json(
+                    req,
+                    HttpStatusCode.BadRequest,
+                    new { error = "A valid email idempotency key is required." },
+                    correlationId);
+            }
+
+            var normalizedIdempotencyKey = idempotencyKey!.ToLowerInvariant();
+            var record = await _stateRepository.GetByIdAsync(
+                normalizedIdempotencyKey,
+                req.FunctionContext.CancellationToken);
+            if (record == null)
+            {
+                return await Json(
+                    req,
+                    HttpStatusCode.NotFound,
+                    new { exists = false, idempotencyKey = normalizedIdempotencyKey },
+                    correlationId);
+            }
+
+            return await Json(
+                req,
+                HttpStatusCode.OK,
+                new
+                {
+                    exists = true,
+                    idempotencyKey = record.Id,
+                    record.Status,
+                    record.AgentRunId,
+                    record.TaskWriteCount,
+                    record.CreatedAt,
+                    record.UpdatedAt,
+                    hasError = !string.IsNullOrWhiteSpace(record.LastError),
+                    protectedMessageFieldsIncluded = false
+                },
+                correlationId);
         }
 
         [Function("ProcessTenantEmailExtractionQueue")]
@@ -342,6 +409,13 @@ namespace Taslow.Tenant.Function
             }
 
             return Guid.NewGuid().ToString();
+        }
+
+        private static string? FirstHeader(HttpRequestData req, string name)
+        {
+            return req.Headers.TryGetValues(name, out var values)
+                ? values.FirstOrDefault()
+                : null;
         }
 
         private static Dictionary<string, string> ParseQuery(string queryString)

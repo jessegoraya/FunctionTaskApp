@@ -4,6 +4,7 @@ using Microsoft.Azure.Cosmos;
 using Taslow.Task.Model;
 using System.Linq;
 using System.Collections.Generic;
+using System.Net;
 using Taslow.Shared.Model;
 using Taslow.Task.Client;
 using Taslow.Task.DAL.Interface;
@@ -484,6 +485,51 @@ namespace Taslow.Task.DAL
                 return false;
             }
 
+        }
+
+        public async Task<bool> DeleteGroupTaskAsync(
+            string id,
+            string tenantid,
+            string groupTaskId)
+        {
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    var response = await container.ReadItemAsync<GroupTaskSet>(
+                        id,
+                        new PartitionKey(tenantid));
+                    var groupTaskSet = response.Resource;
+                    var index = (groupTaskSet.grouptask ?? new List<GroupTask>())
+                        .FindIndex(task => string.Equals(
+                            task.grouptaskid,
+                            groupTaskId,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (index < 0)
+                    {
+                        return false;
+                    }
+
+                    var patchResponse = await container.PatchItemAsync<GroupTaskSet>(
+                        id,
+                        new PartitionKey(tenantid),
+                        new[] { PatchOperation.Remove($"/GroupTask/{index}") },
+                        new PatchItemRequestOptions { IfMatchEtag = response.ETag });
+                    return patchResponse.StatusCode == HttpStatusCode.OK;
+                }
+                catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return false;
+                }
+                catch (CosmosException ex) when (
+                    ex.StatusCode == HttpStatusCode.PreconditionFailed &&
+                    attempt < 3)
+                {
+                    continue;
+                }
+            }
+
+            return false;
         }
 
         public async Task<bool> CreateIndividualTaskAsync(string id, string tenantid, string gtid,  IndividualTask newIndividualTask)
