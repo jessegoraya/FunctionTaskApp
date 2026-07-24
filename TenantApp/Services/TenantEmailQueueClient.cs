@@ -27,14 +27,7 @@ namespace Taslow.Tenant.Service
                 return;
             }
 
-            var queueServiceUri = configuration["AzureWebJobsStorage__queueServiceUri"];
-            if (string.IsNullOrWhiteSpace(queueServiceUri))
-            {
-                var accountName = configuration["AzureWebJobsStorage__accountName"];
-                queueServiceUri = string.IsNullOrWhiteSpace(accountName)
-                    ? null
-                    : $"https://{accountName}.queue.core.windows.net";
-            }
+            var queueServiceUri = ResolveQueueServiceUri(configuration);
 
             if (string.IsNullOrWhiteSpace(queueServiceUri))
             {
@@ -46,6 +39,24 @@ namespace Taslow.Tenant.Service
                 new Uri($"{queueServiceUri.TrimEnd('/')}/{queueName}"),
                 new DefaultAzureCredential(),
                 options);
+        }
+
+        internal static string? ResolveQueueServiceUri(IConfiguration configuration)
+        {
+            // Environment variables use "__", but IConfiguration exposes the
+            // normalized ":" path inside the isolated worker.
+            var queueServiceUri = configuration["AzureWebJobsStorage:queueServiceUri"]
+                ?? configuration["AzureWebJobsStorage__queueServiceUri"];
+            if (!string.IsNullOrWhiteSpace(queueServiceUri))
+            {
+                return queueServiceUri;
+            }
+
+            var accountName = configuration["AzureWebJobsStorage:accountName"]
+                ?? configuration["AzureWebJobsStorage__accountName"];
+            return string.IsNullOrWhiteSpace(accountName)
+                ? null
+                : $"https://{accountName}.queue.core.windows.net";
         }
 
         public async Task EnqueueAsync(TenantEmailExtractionQueueMessage message, CancellationToken cancellationToken = default)
