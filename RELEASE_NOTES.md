@@ -1,5 +1,11 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.9
+
+- Normalizes Microsoft Graph `sentDateTime` values to invariant UTC ISO 8601 before invoking the Foundry email-extraction agent.
+- Prevents locale-formatted timestamps from failing the hosted-agent request contract with HTTP 400.
+- Adds Graph-hydration and raw Foundry-request regression coverage for the exact serialized timestamp.
+
 ## v0.1.0-dev.8
 
 - Adds read-minimal ingestion and task evidence operations for the governed BloomSky email-to-task campaign.

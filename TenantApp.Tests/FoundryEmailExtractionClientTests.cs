@@ -30,7 +30,8 @@ namespace TenantApp.Tests
                 InternetMessageId = "<message-1@example.com>",
                 MessageId = "message-1",
                 Subject = "Task",
-                BodyText = "Complete the review."
+                BodyText = "Complete the review.",
+                SentDateTime = "2026-07-22T12:00:00.0000000+00:00"
             }, "corr-1");
 
             Assert.Equal("agent-run-1", response.AgentRunId);
@@ -38,6 +39,9 @@ namespace TenantApp.Tests
             Assert.Equal("https://ai.azure.com/.default", credential.Scope);
             Assert.Equal("Bearer foundry-token", handler.Authorization);
             Assert.Equal("HostedAgents=V1Preview", handler.FoundryFeatures);
+            Assert.Contains(
+                "\"sentDateTime\":\"2026-07-22T12:00:00.0000000+00:00\"",
+                handler.PayloadJson);
         }
 
         [Fact]
@@ -89,6 +93,7 @@ namespace TenantApp.Tests
         {
             public string? Authorization { get; private set; }
             public string? FoundryFeatures { get; private set; }
+            public string PayloadJson { get; private set; } = string.Empty;
 
             protected override Task<HttpResponseMessage> SendAsync(
                 HttpRequestMessage request,
@@ -96,6 +101,10 @@ namespace TenantApp.Tests
             {
                 Authorization = request.Headers.Authorization?.ToString();
                 FoundryFeatures = request.Headers.GetValues("Foundry-Features").Single();
+                PayloadJson = request.Content!
+                    .ReadAsStringAsync(cancellationToken)
+                    .GetAwaiter()
+                    .GetResult();
                 var payload = """
                     {
                       "agentRunId": "agent-run-1",
