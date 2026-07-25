@@ -166,6 +166,15 @@ namespace Taslow.Tenant.Function
                     record.Status,
                     record.AgentRunId,
                     record.TaskWriteCount,
+                    taskWrites = (record.TaskWrites ?? new List<TenantEmailTaskWriteEvidence>())
+                        .Select(task => new
+                        {
+                            task.IdempotencyKey,
+                            task.GroupTaskSetId,
+                            task.GroupTaskId,
+                            task.ProjectId,
+                            task.ScopeId
+                        }),
                     record.CreatedAt,
                     record.UpdatedAt,
                     hasError = !string.IsNullOrWhiteSpace(record.LastError),

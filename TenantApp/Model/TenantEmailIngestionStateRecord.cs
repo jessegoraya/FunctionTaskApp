@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Taslow.Shared.Model;
 
 namespace Taslow.Tenant.Model
 {
@@ -36,6 +37,9 @@ namespace Taslow.Tenant.Model
 
         [JsonProperty("taskWriteCount")]
         public int TaskWriteCount { get; set; }
+
+        [JsonProperty("taskWrites")]
+        public List<TenantEmailTaskWriteEvidence> TaskWrites { get; set; } = new();
 
         [JsonProperty("lastError")]
         public string? LastError { get; set; }

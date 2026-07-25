@@ -4,7 +4,7 @@ namespace Taslow.Tenant.Service.Interface
 {
     public interface IEmailTaskWriteClient
     {
-        Task<int> WriteAsync(
+        Task<TenantEmailTaskWriteResult> WriteAsync(
             TenantEmailExtractionQueueMessage message,
             TenantEmailExtractionInvokeResponse extraction,
             string correlationId,

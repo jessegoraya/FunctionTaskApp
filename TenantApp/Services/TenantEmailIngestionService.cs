@@ -169,7 +169,7 @@ namespace Taslow.Tenant.Service
                     hydratedMessage,
                     correlationId,
                     cancellationToken);
-                var taskWriteCount = await _taskWriteClient.WriteAsync(
+                var taskWriteResult = await _taskWriteClient.WriteAsync(
                     hydratedMessage,
                     extractionResult,
                     correlationId,
@@ -178,7 +178,8 @@ namespace Taslow.Tenant.Service
                     message.IdempotencyKey,
                     TenantEmailIngestionStatus.Processed,
                     extractionResult.AgentRunId,
-                    taskWriteCount,
+                    taskWriteResult.TaskWriteCount,
+                    taskWriteResult.TaskWrites,
                     null,
                     cancellationToken);
 
@@ -188,7 +189,7 @@ namespace Taslow.Tenant.Service
                     message.Mailbox,
                     message.GraphEventId,
                     extractionResult.AgentRunId ?? string.Empty,
-                    taskWriteCount);
+                    taskWriteResult.TaskWriteCount);
             }
             catch (TenantEmailIngestionException ex)
             {
@@ -205,6 +206,7 @@ namespace Taslow.Tenant.Service
                 await UpdateStateRecordAsync(
                     message.IdempotencyKey,
                     TenantEmailIngestionStatus.Failed,
+                    null,
                     null,
                     null,
                     ex.Message,
@@ -233,6 +235,7 @@ namespace Taslow.Tenant.Service
                     TenantEmailIngestionStatus.Failed,
                     null,
                     null,
+                    null,
                     ex.Message,
                     cancellationToken);
 
@@ -249,6 +252,7 @@ namespace Taslow.Tenant.Service
             string status,
             string? agentRunId,
             int? taskWriteCount,
+            IReadOnlyList<TenantEmailTaskWriteEvidence>? taskWrites,
             string? lastError,
             CancellationToken cancellationToken)
         {
@@ -261,6 +265,10 @@ namespace Taslow.Tenant.Service
             record.Status = status;
             record.AgentRunId = agentRunId ?? record.AgentRunId;
             record.TaskWriteCount = taskWriteCount ?? record.TaskWriteCount;
+            if (taskWrites != null)
+            {
+                record.TaskWrites = taskWrites.ToList();
+            }
             record.LastError = lastError;
             record.UpdatedAt = DateTime.UtcNow.ToString("O");
             await _stateRepository.UpsertAsync(record, cancellationToken);

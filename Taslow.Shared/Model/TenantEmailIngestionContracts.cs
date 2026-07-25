@@ -190,4 +190,31 @@ namespace Taslow.Shared.Model
         [JsonProperty("needsReview")]
         public bool NeedsReview { get; set; }
     }
+
+    public class TenantEmailTaskWriteEvidence
+    {
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; } = string.Empty;
+
+        [JsonProperty("groupTaskSetId")]
+        public string GroupTaskSetId { get; set; } = string.Empty;
+
+        [JsonProperty("groupTaskId")]
+        public string GroupTaskId { get; set; } = string.Empty;
+
+        [JsonProperty("projectId")]
+        public string ProjectId { get; set; } = string.Empty;
+
+        [JsonProperty("scopeId")]
+        public string ScopeId { get; set; } = string.Empty;
+    }
+
+    public class TenantEmailTaskWriteResult
+    {
+        [JsonProperty("taskWriteCount")]
+        public int TaskWriteCount { get; set; }
+
+        [JsonProperty("taskWrites")]
+        public List<TenantEmailTaskWriteEvidence> TaskWrites { get; set; } = new();
+    }
 }
