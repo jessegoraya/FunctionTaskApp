@@ -23,7 +23,15 @@ namespace Taslow.Task.Service
 
         public GroupTask SetNewIDs(GroupTask gt)
         {
-            gt.grouptaskid = Guid.NewGuid().ToString();
+            if (string.IsNullOrWhiteSpace(gt.grouptaskid)
+                || string.Equals(
+                    gt.grouptaskid,
+                    Guid.Empty.ToString(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                gt.grouptaskid = Guid.NewGuid().ToString();
+            }
+
             gt.createddate = DateTime.Now;
             gt.lastmodifieddate = DateTime.Now;
             SetIndividualTaskSetNames(gt);

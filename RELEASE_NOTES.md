@@ -1,5 +1,11 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.10
+
+- Preserves caller-assigned Group Task identifiers through the Task write path so governed email tasks retain their deterministic idempotency identity.
+- Continues generating identifiers for interactive and legacy callers that omit the Group Task identifier or submit the empty GUID.
+- Adds regression coverage for both deterministic email-agent writes and server-generated identifiers.
+
 ## v0.1.0-dev.9
 
 - Normalizes Microsoft Graph `sentDateTime` values to invariant UTC ISO 8601 before invoking the Foundry email-extraction agent.
