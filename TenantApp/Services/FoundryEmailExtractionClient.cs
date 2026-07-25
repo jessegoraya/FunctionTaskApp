@@ -39,7 +39,7 @@ namespace Taslow.Tenant.Service
             if (!TryValidateEndpoint(endpoint, out var endpointUri))
             {
                 throw new TenantEmailIngestionException(
-                    "The version-pinned Foundry agent endpoint is missing or invalid.",
+                    "The governed Foundry agent endpoint is missing or invalid.",
                     isTransient: false);
             }
 
@@ -131,7 +131,7 @@ namespace Taslow.Tenant.Service
                 || parsed.Scheme != Uri.UriSchemeHttps
                 || !parsed.Host.EndsWith(".services.ai.azure.com", StringComparison.OrdinalIgnoreCase)
                 || !parsed.AbsolutePath.Contains("/agents/", StringComparison.OrdinalIgnoreCase)
-                || !parsed.AbsolutePath.Contains("/versions/", StringComparison.OrdinalIgnoreCase)
+                || parsed.AbsolutePath.Contains("/versions/", StringComparison.OrdinalIgnoreCase)
                 || !parsed.AbsolutePath.EndsWith(
                     "/endpoint/protocols/invocations",
                     StringComparison.OrdinalIgnoreCase)

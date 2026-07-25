@@ -17,7 +17,7 @@ namespace TenantApp.Tests
             var handler = new RecordingHandler();
             var credential = new RecordingTokenCredential();
             var client = CreateClient(
-                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/versions/7/endpoint/protocols/invocations?api-version=v1",
+                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/endpoint/protocols/invocations?api-version=v1",
                 handler,
                 credential);
 
@@ -41,10 +41,10 @@ namespace TenantApp.Tests
         }
 
         [Fact]
-        public async Task InvokeAsync_ShouldRejectUnpinnedEndpoint()
+        public async Task InvokeAsync_ShouldRejectVersionSpecificEndpoint()
         {
             var client = CreateClient(
-                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/endpoint/protocols/invocations?api-version=v1",
+                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/versions/7/endpoint/protocols/invocations?api-version=v1",
                 new RecordingHandler(),
                 new RecordingTokenCredential());
 
@@ -58,7 +58,7 @@ namespace TenantApp.Tests
         public async Task InvokeAsync_ShouldRejectEndpointWithoutFoundryApiVersion()
         {
             var client = CreateClient(
-                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/versions/7/endpoint/protocols/invocations",
+                "https://project.services.ai.azure.com/api/projects/test/agents/taslow-email-extraction/endpoint/protocols/invocations",
                 new RecordingHandler(),
                 new RecordingTokenCredential());
 
