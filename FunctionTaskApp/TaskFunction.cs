@@ -247,6 +247,123 @@ namespace Taslow.Task.Function
                 : req.CreateResponse(HttpStatusCode.Conflict);
         }
 
+        [Function("GetInternalEmailE2ERecoveryTasks")]
+        public async Task<HttpResponseData> RunGetInternalEmailE2ERecoveryTasksAsync(
+            [HttpTrigger(
+                AuthorizationLevel.Function,
+                "get",
+                Route = "internal/email-e2e/recovery/tasks/{tenantid}/{groupTaskSetId}")] HttpRequestData req,
+            string tenantid,
+            string groupTaskSetId)
+        {
+            if (!WorkloadRequestAuthorizer.IsEmailE2ETestRunnerAuthorized(
+                FirstHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+            {
+                return req.CreateResponse(HttpStatusCode.Unauthorized);
+            }
+
+            if (!TryReadRecoveryWindow(
+                    req,
+                    tenantid,
+                    groupTaskSetId,
+                    out var createdAfter,
+                    out var createdBefore,
+                    out var error))
+            {
+                return await TextAsync(req, HttpStatusCode.BadRequest, error);
+            }
+
+            var taskSet = await _taskDb.GetGroupTaskSet(groupTaskSetId, tenantid);
+            if (taskSet == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var candidates = EmailE2ETaskRecoveryPolicy.FindCandidates(
+                taskSet,
+                createdAfter,
+                createdBefore);
+            return await JsonAsync(req, HttpStatusCode.OK, new
+            {
+                count = candidates.Count,
+                tasks = candidates.Select(candidate => new
+                {
+                    tenantId = tenantid,
+                    groupTaskSetId,
+                    groupTaskId = candidate.GroupTaskId,
+                    idempotencyKey = candidate.IdempotencyKey,
+                    createdAt = candidate.CreatedAt,
+                    protectedSourceFieldsIncluded = false
+                })
+            });
+        }
+
+        [Function("DeleteInternalEmailE2ERecoveryTask")]
+        public async Task<HttpResponseData> RunDeleteInternalEmailE2ERecoveryTaskAsync(
+            [HttpTrigger(
+                AuthorizationLevel.Function,
+                "delete",
+                Route = "internal/email-e2e/recovery/tasks/{tenantid}/{groupTaskSetId}")] HttpRequestData req,
+            string tenantid,
+            string groupTaskSetId)
+        {
+            if (!WorkloadRequestAuthorizer.IsEmailE2ETestRunnerAuthorized(
+                FirstHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+            {
+                return req.CreateResponse(HttpStatusCode.Unauthorized);
+            }
+
+            if (!TryReadRecoveryWindow(
+                    req,
+                    tenantid,
+                    groupTaskSetId,
+                    out var createdAfter,
+                    out var createdBefore,
+                    out var error))
+            {
+                return await TextAsync(req, HttpStatusCode.BadRequest, error);
+            }
+
+            var taskSet = await _taskDb.GetGroupTaskSet(groupTaskSetId, tenantid);
+            if (taskSet == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            var candidates = EmailE2ETaskRecoveryPolicy.FindCandidates(
+                taskSet,
+                createdAfter,
+                createdBefore);
+            if (candidates.Count == 0)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            if (candidates.Count != 1)
+            {
+                return await TextAsync(
+                    req,
+                    HttpStatusCode.Conflict,
+                    "Recovery requires exactly one source-verified synthetic task.");
+            }
+
+            var candidate = candidates[0];
+            var deleted = await _taskDb.DeleteGroupTaskAsync(
+                groupTaskSetId,
+                tenantid,
+                candidate.GroupTaskId);
+            return deleted
+                ? await JsonAsync(req, HttpStatusCode.OK, new
+                {
+                    matchedCount = 1,
+                    deletedCount = 1,
+                    groupTaskSetId,
+                    groupTaskId = candidate.GroupTaskId,
+                    idempotencyKey = candidate.IdempotencyKey
+                })
+                : req.CreateResponse(HttpStatusCode.Conflict);
+        }
+
         [Function("GetGroupTaskSetByProjectId")]
         public async Task<HttpResponseData> RunGetGroupTaskSetByProjectIdAsync(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "grouptasksetbyproject/{projectid}/{tenantid}")] HttpRequestData req,
@@ -652,6 +769,33 @@ namespace Taslow.Task.Function
                 && value.All(character =>
                     character is >= '0' and <= '9'
                     || character is >= 'a' and <= 'f');
+        }
+
+        private static bool TryReadRecoveryWindow(
+            HttpRequestData req,
+            string tenantid,
+            string groupTaskSetId,
+            out DateTimeOffset createdAfter,
+            out DateTimeOffset createdBefore,
+            out string error)
+        {
+            createdAfter = default;
+            createdBefore = default;
+
+            if (string.IsNullOrWhiteSpace(tenantid)
+                || string.IsNullOrWhiteSpace(groupTaskSetId))
+            {
+                error = "Tenant and Group Task Set identifiers are required.";
+                return false;
+            }
+
+            var query = ParseQuery(req.Url);
+            return EmailE2ETaskRecoveryPolicy.TryValidateWindow(
+                query.GetValueOrDefault("createdAfter")?.FirstOrDefault(),
+                query.GetValueOrDefault("createdBefore")?.FirstOrDefault(),
+                out createdAfter,
+                out createdBefore,
+                out error);
         }
 
         private static async Task<HttpResponseData> TextAsync(

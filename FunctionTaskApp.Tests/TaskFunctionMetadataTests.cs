@@ -19,6 +19,8 @@ namespace FunctionTaskApp.Tests
             AssertTrigger("GetInternalGroupTaskExistence", AuthorizationLevel.Function, "internal/tasks/group-task-exists/{tenantid}/{groupTaskSetId}/{groupTaskId}", "get");
             AssertTrigger("GetInternalEmailE2EGroupTaskEvidence", AuthorizationLevel.Function, "internal/email-e2e/tasks/{tenantid}/{groupTaskSetId}/{groupTaskId}/{idempotencyKey}", "get");
             AssertTrigger("DeleteInternalEmailE2EGroupTask", AuthorizationLevel.Function, "internal/email-e2e/tasks/{tenantid}/{groupTaskSetId}/{groupTaskId}/{idempotencyKey}", "delete");
+            AssertTrigger("GetInternalEmailE2ERecoveryTasks", AuthorizationLevel.Function, "internal/email-e2e/recovery/tasks/{tenantid}/{groupTaskSetId}", "get");
+            AssertTrigger("DeleteInternalEmailE2ERecoveryTask", AuthorizationLevel.Function, "internal/email-e2e/recovery/tasks/{tenantid}/{groupTaskSetId}", "delete");
             AssertTrigger("GetGroupTaskSetByProjectId", AuthorizationLevel.Function, "grouptasksetbyproject/{projectid}/{tenantid}", "get");
             AssertTrigger("GetGroupTaskSetsByProjectId", AuthorizationLevel.Function, "grouptasksetsbyproject/{projectid}/{tenantid}", "get");
             AssertTrigger("UpdateGroupTaskSet", AuthorizationLevel.Function, "grouptaskset/{id}/{tenantid}", "put");
@@ -42,7 +44,7 @@ namespace FunctionTaskApp.Tests
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public)
                 .Count(method => method.GetCustomAttribute<FunctionAttribute>() != null);
 
-            Assert.Equal(20, count);
+            Assert.Equal(22, count);
         }
 
         private static void AssertTrigger(

@@ -103,6 +103,52 @@ namespace TenantApp.Tests
         }
 
         [Fact]
+        public async Task ProcessExtractionMessageAsync_ShouldPersistNonSensitiveTaskWriteEvidence()
+        {
+            var tenant = CreateTenant(enabled: true);
+            var tenantRepository = new FakeTenantRepository(tenant);
+            var stateRepository = new FakeStateRepository(tryCreateResult: true);
+            var queueClient = new FakeQueueClient();
+            var extractionClient = new FakeExtractionClient
+            {
+                Handler = (_, _) => new TenantEmailExtractionInvokeResponse
+                {
+                    AgentRunId = "run-evidence",
+                    Status = "tasks_ready",
+                    TaskCandidateCount = 1,
+                    Tasks = new List<TenantExtractedTaskAssignment>
+                    {
+                        new()
+                        {
+                            SourceTaskId = "task-1",
+                            ProjectId = "project-1",
+                            ScopeId = "scope-1"
+                        }
+                    }
+                }
+            };
+            var service = CreateService(
+                tenantRepository,
+                stateRepository,
+                queueClient,
+                extractionClient);
+            var intake = await service.IntakeGraphEventAsync(CreateRequest(), "corr-1");
+
+            await service.ProcessExtractionMessageAsync(
+                intake.QueueMessage!,
+                dequeueCount: 1,
+                correlationId: "corr-1");
+
+            var state = await stateRepository.GetByIdAsync(intake.QueueMessage!.IdempotencyKey);
+            Assert.NotNull(state);
+            Assert.Equal(1, state!.TaskWriteCount);
+            var write = Assert.Single(state.TaskWrites);
+            Assert.Equal("gts-1", write.GroupTaskSetId);
+            Assert.Equal("project-1", write.ProjectId);
+            Assert.Equal("scope-1", write.ScopeId);
+        }
+
+        [Fact]
         public async Task IntakeGraphEventAsync_ShouldIgnoreWhenFeatureDisabled()
         {
             var tenant = CreateTenant(enabled: false);
@@ -304,13 +350,24 @@ namespace TenantApp.Tests
 
     internal class FakeTaskWriteClient : IEmailTaskWriteClient
     {
-        public Task<int> WriteAsync(
+        public Task<TenantEmailTaskWriteResult> WriteAsync(
             TenantEmailExtractionQueueMessage message,
             TenantEmailExtractionInvokeResponse extraction,
             string correlationId,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(extraction.Tasks.Count);
+            return Task.FromResult(new TenantEmailTaskWriteResult
+            {
+                TaskWriteCount = extraction.Tasks.Count,
+                TaskWrites = extraction.Tasks.Select(task => new TenantEmailTaskWriteEvidence
+                {
+                    IdempotencyKey = new string('a', 64),
+                    GroupTaskSetId = "gts-1",
+                    GroupTaskId = "11111111-1111-5111-8111-111111111111",
+                    ProjectId = task.ProjectId,
+                    ScopeId = task.ScopeId ?? string.Empty
+                }).ToList()
+            });
         }
     }
 }

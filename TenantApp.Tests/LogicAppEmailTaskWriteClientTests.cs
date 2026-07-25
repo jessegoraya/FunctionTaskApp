@@ -18,12 +18,18 @@ namespace TenantApp.Tests
             var handler = new RecordingHandler();
             var client = CreateClient(handler);
 
-            var written = await client.WriteAsync(
+            var result = await client.WriteAsync(
                 CreateMessage(),
                 CreateExtraction("assignee@bloomsky.onmicrosoft.com"),
                 "corr-1");
 
-            Assert.Equal(1, written);
+            Assert.Equal(1, result.TaskWriteCount);
+            var write = Assert.Single(result.TaskWrites);
+            Assert.Equal("gts-1", write.GroupTaskSetId);
+            Assert.Equal("project-1", write.ProjectId);
+            Assert.Equal("scope-1", write.ScopeId);
+            Assert.False(string.IsNullOrWhiteSpace(write.GroupTaskId));
+            Assert.Matches("^[a-f0-9]{64}$", write.IdempotencyKey);
             Assert.Equal("Bearer project-token", handler.ProjectAuthorization);
             Assert.Equal("Bearer project-token", handler.TaskAuthorization);
             Assert.Contains(
@@ -60,12 +66,15 @@ namespace TenantApp.Tests
             var message = CreateMessage();
             var extraction = CreateExtraction("assignee@bloomsky.onmicrosoft.com");
 
-            Assert.Equal(1, await client.WriteAsync(message, extraction, "corr-1"));
+            var first = await client.WriteAsync(message, extraction, "corr-1");
+            Assert.Equal(1, first.TaskWriteCount);
             handler.ExistingGroupTaskId = handler.LogicAppPayload!
                 .SelectToken("grouptask[0].GroupTaskID")!
                 .Value<string>();
 
-            Assert.Equal(0, await client.WriteAsync(message, extraction, "corr-2"));
+            var duplicate = await client.WriteAsync(message, extraction, "corr-2");
+            Assert.Equal(0, duplicate.TaskWriteCount);
+            Assert.Empty(duplicate.TaskWrites);
             Assert.Equal(1, handler.LogicAppRequestCount);
         }
 

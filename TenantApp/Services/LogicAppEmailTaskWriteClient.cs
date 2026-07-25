@@ -32,7 +32,7 @@ namespace Taslow.Tenant.Service
             _credential = credential;
         }
 
-        public async Task<int> WriteAsync(
+        public async Task<TenantEmailTaskWriteResult> WriteAsync(
             TenantEmailExtractionQueueMessage message,
             TenantEmailExtractionInvokeResponse extraction,
             string correlationId,
@@ -41,7 +41,7 @@ namespace Taslow.Tenant.Service
             if (!extraction.Status.Equals("tasks_ready", StringComparison.OrdinalIgnoreCase)
                 || extraction.Tasks.Count == 0)
             {
-                return 0;
+                return new TenantEmailTaskWriteResult();
             }
 
             var projectIds = extraction.Tasks
@@ -57,6 +57,7 @@ namespace Taslow.Tenant.Service
             var logicAppEndpoint = GetLogicAppEndpoint();
             var minimumConfidence = ReadMinimumConfidence();
             var written = 0;
+            var taskWrites = new List<TenantEmailTaskWriteEvidence>();
 
             foreach (var task in extraction.Tasks)
             {
@@ -141,9 +142,21 @@ namespace Taslow.Tenant.Service
                 }
 
                 written++;
+                taskWrites.Add(new TenantEmailTaskWriteEvidence
+                {
+                    IdempotencyKey = BuildTaskIdempotencyKey(message, task),
+                    GroupTaskSetId = scope.GroupTaskSetId,
+                    GroupTaskId = groupTaskId.ToString("D"),
+                    ProjectId = project.ProjectId,
+                    ScopeId = scope.ScopeId
+                });
             }
 
-            return written;
+            return new TenantEmailTaskWriteResult
+            {
+                TaskWriteCount = written,
+                TaskWrites = taskWrites
+            };
         }
 
         private async Task<bool> TaskAlreadyExistsAsync(
