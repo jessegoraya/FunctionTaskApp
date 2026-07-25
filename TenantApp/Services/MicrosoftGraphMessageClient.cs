@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
 using Taslow.Shared.Model;
@@ -76,7 +77,7 @@ namespace Taslow.Tenant.Service
                 message.BodyText = payload.SelectToken("body.content")?.Value<string>()
                     ?? payload.Value<string>("bodyPreview")
                     ?? string.Empty;
-                message.SentDateTime = payload.Value<string>("sentDateTime");
+                message.SentDateTime = ReadUtcTimestamp(payload["sentDateTime"]);
                 message.From = ReadParticipant(payload.SelectToken("from.emailAddress"));
                 message.To = ReadParticipants(payload["toRecipients"]);
                 message.Cc = ReadParticipants(payload["ccRecipients"]);
@@ -154,6 +155,34 @@ namespace Taslow.Tenant.Service
                 Email = email,
                 Name = token?.Value<string>("name") ?? string.Empty
             };
+        }
+
+        private static string? ReadUtcTimestamp(JToken? token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.Date)
+            {
+                return token.Value<DateTime>()
+                    .ToUniversalTime()
+                    .ToString("O", CultureInfo.InvariantCulture);
+            }
+
+            if (!DateTimeOffset.TryParse(
+                    token.Value<string>(),
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
+                    out var parsed))
+            {
+                throw new TenantEmailIngestionException(
+                    "Microsoft Graph returned an invalid sentDateTime.",
+                    isTransient: false);
+            }
+
+            return parsed.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
         }
 
         private static List<TenantEmailParticipant> ReadParticipants(JToken? token)

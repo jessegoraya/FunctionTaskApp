@@ -38,6 +38,7 @@ namespace TenantApp.Tests
             Assert.Equal("<internet-message@bloomsky.onmicrosoft.com>", hydrated.InternetMessageId);
             Assert.Equal("Complete readiness review", hydrated.Subject);
             Assert.Equal("Please complete the readiness review.", hydrated.BodyText);
+            Assert.Equal("2026-07-22T12:00:00.0000000Z", hydrated.SentDateTime);
             Assert.Equal("sender@bloomsky.onmicrosoft.com", hydrated.From!.Email);
             Assert.Single(hydrated.To);
         }
