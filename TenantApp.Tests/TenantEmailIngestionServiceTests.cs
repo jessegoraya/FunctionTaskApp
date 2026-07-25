@@ -69,6 +69,36 @@ namespace TenantApp.Tests
         }
 
         [Fact]
+        public async Task IntakeGraphEventAsync_ShouldScopeMessageFallbackToGraphSubscription()
+        {
+            var tenant = CreateTenant(enabled: true);
+            var tenantRepository = new FakeTenantRepository(tenant);
+            var stateRepository = new FakeStateRepository(tryCreateResult: true);
+            var queueClient = new FakeQueueClient();
+            var extractionClient = new FakeExtractionClient();
+            var service = CreateService(tenantRepository, stateRepository, queueClient, extractionClient);
+            var firstRequest = CreateRequest();
+            firstRequest.InternetMessageId = string.Empty;
+            firstRequest.SubscriptionId = "subscription-a";
+            var secondRequest = CreateRequest();
+            secondRequest.InternetMessageId = string.Empty;
+            secondRequest.SubscriptionId = "subscription-b";
+
+            var first = await service.IntakeGraphEventAsync(firstRequest, "corr-1");
+            var second = await service.IntakeGraphEventAsync(secondRequest, "corr-2");
+
+            Assert.Equal(
+                TenantEmailIdempotencyKeyBuilder.Build(
+                    firstRequest.TenantId,
+                    firstRequest.Mailbox,
+                    $"{firstRequest.SubscriptionId}:{firstRequest.MessageId}",
+                    firstRequest.Direction),
+                first.Response.IdempotencyKey);
+            Assert.NotEqual(first.Response.IdempotencyKey, second.Response.IdempotencyKey);
+            Assert.Equal(2, queueClient.Messages.Count);
+        }
+
+        [Fact]
         public async Task ProcessExtractionMessageAsync_ShouldThrowOnceForTransientFailure_ThenMarkFailed()
         {
             var tenant = CreateTenant(enabled: true);
