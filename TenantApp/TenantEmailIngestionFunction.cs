@@ -178,6 +178,7 @@ namespace Taslow.Tenant.Function
                     record.CreatedAt,
                     record.UpdatedAt,
                     hasError = !string.IsNullOrWhiteSpace(record.LastError),
+                    failureCategory = ClassifyFailure(record.LastError),
                     protectedMessageFieldsIncluded = false
                 },
                 correlationId);
@@ -280,6 +281,33 @@ namespace Taslow.Tenant.Function
             var value = _configuration["TenantEmailIngestion:AllowDirectPayloads"]
                 ?? _configuration["TenantEmailIngestion__AllowDirectPayloads"];
             return bool.TryParse(value, out var enabled) && enabled;
+        }
+
+        internal static string ClassifyFailure(string? lastError)
+        {
+            if (string.IsNullOrWhiteSpace(lastError))
+            {
+                return "none";
+            }
+
+            if (lastError.Contains("Graph", StringComparison.OrdinalIgnoreCase))
+            {
+                return "graph_hydration";
+            }
+
+            if (lastError.Contains("Foundry", StringComparison.OrdinalIgnoreCase))
+            {
+                return "foundry_invocation";
+            }
+
+            if (lastError.Contains("task", StringComparison.OrdinalIgnoreCase)
+                || lastError.Contains("Logic App", StringComparison.OrdinalIgnoreCase)
+                || lastError.Contains("project context", StringComparison.OrdinalIgnoreCase))
+            {
+                return "task_write";
+            }
+
+            return "unclassified";
         }
 
         private static bool TryParseGraphNotificationEnvelope(

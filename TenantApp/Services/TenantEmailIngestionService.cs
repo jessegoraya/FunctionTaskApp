@@ -67,12 +67,15 @@ namespace Taslow.Tenant.Service
                 return BuildIgnored(request, "mailbox_not_allow_listed");
             }
 
+            var idempotencySourceId = string.IsNullOrWhiteSpace(request.InternetMessageId)
+                ? string.IsNullOrWhiteSpace(request.SubscriptionId)
+                    ? request.MessageId
+                    : $"{request.SubscriptionId}:{request.MessageId}"
+                : request.InternetMessageId;
             var idempotencyKey = TenantEmailIdempotencyKeyBuilder.Build(
                 request.TenantId,
                 request.Mailbox,
-                string.IsNullOrWhiteSpace(request.InternetMessageId)
-                    ? request.MessageId
-                    : request.InternetMessageId,
+                idempotencySourceId,
                 request.Direction);
 
             var now = DateTime.UtcNow.ToString("O");

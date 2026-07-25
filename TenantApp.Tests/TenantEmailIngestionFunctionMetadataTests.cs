@@ -45,4 +45,17 @@ public sealed class TenantEmailIngestionFunctionMetadataTests
             trigger.Methods ?? Array.Empty<string>(),
             StringComparer.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData(null, "none")]
+    [InlineData("Microsoft Graph message hydration failed.", "graph_hydration")]
+    [InlineData("Foundry agent invocation failed with status 503.", "foundry_invocation")]
+    [InlineData("Logic App task write failed.", "task_write")]
+    [InlineData("Unexpected dependency response.", "unclassified")]
+    public void ClassifyFailure_ReturnsOnlyNonSensitiveCategories(
+        string? lastError,
+        string expected)
+    {
+        Assert.Equal(expected, TenantEmailIngestionFunction.ClassifyFailure(lastError));
+    }
 }
