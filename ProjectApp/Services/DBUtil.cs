@@ -836,7 +836,7 @@ namespace Taslow.Project.DAL
             };
         }
 
-        private static ProjectAgentContextProject MapAgentContextProject(
+        internal static ProjectAgentContextProject MapAgentContextProject(
             JObject project,
             ProjectAgentContextRequest request)
         {
@@ -1008,11 +1008,13 @@ namespace Taslow.Project.DAL
                     ScopeTitle = ReadString(
                         scope,
                         "ProjectScopeAreaTitle",
+                        "projectScopeAreaTitle",
                         "scopeTitle",
                         "title"),
                     ScopeDescription = ReadString(
                         scope,
                         "ProjectScopeArea",
+                        "projectScopeArea",
                         "scopeDescription",
                         "description"),
                     GroupTaskSetId = ReadString(scope, "GroupTaskSetID", "groupTaskSetId")
