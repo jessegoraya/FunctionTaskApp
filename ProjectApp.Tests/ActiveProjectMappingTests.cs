@@ -1,5 +1,6 @@
 using Newtonsoft.Json.Linq;
 using Taslow.Project.DAL;
+using Taslow.Shared.Model;
 using Xunit;
 
 namespace ProjectApp.Tests;
@@ -57,5 +58,39 @@ public class ActiveProjectMappingTests
         Assert.Equal("client.example", Assert.Single(project.ClientDomains));
         Assert.Equal("evelyn-carter@acme-consulting.example", Assert.Single(project.AssociatedManagers).PersonEmail);
         Assert.Equal("gts-a", Assert.Single(project.ProjectScopes).GroupTaskSetId);
+    }
+
+    [Fact]
+    public void MapAgentContextProject_ShouldNormalizeCamelCaseScopeShape()
+    {
+        var source = JObject.Parse(@"{
+          ""id"": ""project-a"",
+          ""projectName"": ""ACME Recompete"",
+          ""projectDescription"": ""Delivery support"",
+          ""projectStatus"": ""Active"",
+          ""projectScopes"": [
+            {
+              ""scopeId"": ""scope-a"",
+              ""projectScopeAreaTitle"": ""Scope/General Description"",
+              ""projectScopeArea"": ""General delivery requirements."",
+              ""groupTaskSetId"": ""gts-a""
+            }
+          ]
+        }");
+
+        var project = DBUtil.MapAgentContextProject(
+            source,
+            new ProjectAgentContextRequest
+            {
+                TenantId = "tenant-a",
+                ProjectIds = new List<string> { "project-a" },
+                IncludeScopes = true
+            });
+
+        var scope = Assert.Single(project.Scopes);
+        Assert.Equal("scope-a", scope.ScopeId);
+        Assert.Equal("Scope/General Description", scope.ScopeTitle);
+        Assert.Equal("General delivery requirements.", scope.ScopeDescription);
+        Assert.Equal("gts-a", scope.GroupTaskSetId);
     }
 }
