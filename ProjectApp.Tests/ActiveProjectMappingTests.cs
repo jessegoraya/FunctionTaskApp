@@ -93,4 +93,43 @@ public class ActiveProjectMappingTests
         Assert.Equal("General delivery requirements.", scope.ScopeDescription);
         Assert.Equal("gts-a", scope.GroupTaskSetId);
     }
+
+    [Fact]
+    public void EnrichAgentContextDisplayNames_ShouldUseCanonicalTenantDirectoryNames()
+    {
+        var project = new ProjectAgentContextProject
+        {
+            AssociatedPeople =
+            {
+                new ProjectAgentContextPerson
+                {
+                    Email = "bebright@bloomsky.onmicrosoft.com",
+                    DisplayName = "bebright",
+                    Role = "Person"
+                }
+            },
+            AssociatedManagers =
+            {
+                new ProjectAgentContextPerson
+                {
+                    Email = "aebright@bloomsky.onmicrosoft.com",
+                    DisplayName = "aebright",
+                    Role = "Manager"
+                }
+            }
+        };
+        var tenantDisplayNames = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["BEBRIGHT@BLOOMSKY.ONMICROSOFT.COM"] = "Bradford Ebright",
+            ["aebright@bloomsky.onmicrosoft.com"] = "Alex Ebright"
+        };
+
+        DBUtil.EnrichAgentContextDisplayNames(project, tenantDisplayNames);
+
+        var person = Assert.Single(project.AssociatedPeople);
+        Assert.Equal("Bradford Ebright", person.DisplayName);
+        Assert.Equal("bebright", person.Aliases);
+        Assert.Equal("Alex Ebright", Assert.Single(project.AssociatedManagers).DisplayName);
+    }
 }
