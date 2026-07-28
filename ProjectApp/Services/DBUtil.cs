@@ -19,9 +19,11 @@ namespace Taslow.Project.DAL
         private readonly IConfiguration _configuration;
         private CosmosClient? cosmosClient;
         private static Container? container;
+        private static Container? tenantContainer;
 
         private const string DatabaseName = "bloomskyHealth";
         private const string ContainerName = "Project";
+        private const string TenantContainerName = "Tenant";
 
         public DBUtil(IConfiguration configuration)
         {
@@ -43,6 +45,25 @@ namespace Taslow.Project.DAL
                 container = cosmosClient.GetContainer(databaseName, containerName);
 
                 return container;
+            }
+        }
+
+        private Container TenantContainer
+        {
+            get
+            {
+                if (tenantContainer != null)
+                    return tenantContainer;
+
+                cosmosClient ??= CosmosClientFactory.Create(key => _configuration[key]);
+                var databaseName = _configuration["ProjectCosmosDatabaseName"]
+                    ?? _configuration["CosmosDBDatabaseName"]
+                    ?? DatabaseName;
+                var containerName = _configuration["TenantCosmosContainerName"]
+                    ?? TenantContainerName;
+                tenantContainer = cosmosClient.GetContainer(databaseName, containerName);
+
+                return tenantContainer;
             }
         }
 
@@ -373,6 +394,7 @@ namespace Taslow.Project.DAL
                 return response;
             }
 
+            var tenantDisplayNames = await GetTenantDisplayNamesByEmailAsync(request.TenantId);
             var query = new QueryDefinition(
                 "SELECT * FROM c WHERE ARRAY_CONTAINS(@ids, c.id) AND (c.TenantID = @tenantId OR c.tenantID = @tenantId OR c.tenantid = @tenantId)")
                 .WithParameter("@ids", distinctProjectIds)
@@ -389,11 +411,72 @@ namespace Taslow.Project.DAL
             {
                 foreach (var project in await iterator.ReadNextAsync())
                 {
-                    response.Projects.Add(MapAgentContextProject(project, request));
+                    var contextProject = MapAgentContextProject(project, request);
+                    EnrichAgentContextDisplayNames(contextProject, tenantDisplayNames);
+                    response.Projects.Add(contextProject);
                 }
             }
 
             return response;
+        }
+
+        private async Task<IReadOnlyDictionary<string, string>> GetTenantDisplayNamesByEmailAsync(
+            string tenantId)
+        {
+            var response = await TenantContainer.ReadItemAsync<JObject>(
+                id: tenantId,
+                partitionKey: new PartitionKey(tenantId));
+            var users = response.Resource["tenant_users"]
+                ?? response.Resource["tenantUsers"];
+
+            if (users is not JArray tenantUsers)
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            return tenantUsers
+                .OfType<JObject>()
+                .Select(user => new
+                {
+                    Email = NormalizeEmail(ReadString(user, "email", "Email")),
+                    DisplayName = ReadString(user, "displayName", "DisplayName", "name", "Name")
+                })
+                .Where(user =>
+                    !string.IsNullOrWhiteSpace(user.Email)
+                    && !string.IsNullOrWhiteSpace(user.DisplayName))
+                .GroupBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First().DisplayName,
+                    StringComparer.OrdinalIgnoreCase);
+        }
+
+        internal static void EnrichAgentContextDisplayNames(
+            ProjectAgentContextProject project,
+            IReadOnlyDictionary<string, string> tenantDisplayNames)
+        {
+            foreach (var person in project.AssociatedPeople.Concat(project.AssociatedManagers))
+            {
+                var email = NormalizeEmail(person.Email);
+                if (tenantDisplayNames.TryGetValue(email, out var displayName)
+                    && !string.IsNullOrWhiteSpace(displayName))
+                {
+                    var existingName = person.DisplayName?.Trim() ?? string.Empty;
+                    var existingAliases = person.Aliases ?? string.Empty;
+                    person.DisplayName = displayName.Trim();
+                    if (!string.IsNullOrWhiteSpace(existingName)
+                        && !string.Equals(existingName, person.DisplayName, StringComparison.OrdinalIgnoreCase)
+                        && !existingAliases.Split(
+                                ',',
+                                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Contains(existingName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        person.Aliases = string.IsNullOrWhiteSpace(existingAliases)
+                            ? existingName
+                            : $"{existingAliases},{existingName}";
+                    }
+                }
+            }
         }
 
         public async Task<bool> UpdateProjectClientDomainsAsync(ProjectClientDomainsPatchRequest request)

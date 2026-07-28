@@ -1,5 +1,14 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.11
+
+- Enriches Project agent-context users with canonical display names from the tenant directory
+  before the Foundry email agent resolves task assignees.
+- Preserves legacy mailbox handles as aliases so existing deterministic references continue to
+  match while production-shaped names such as `Bradford Ebright` resolve correctly.
+- Keeps the lookup tenant-partitioned and covered by the Project Function's existing
+  database-scoped managed-identity access.
+
 ## v0.1.0-dev.10
 
 - Preserves caller-assigned Group Task identifiers through the Task write path so governed email tasks retain their deterministic idempotency identity.
