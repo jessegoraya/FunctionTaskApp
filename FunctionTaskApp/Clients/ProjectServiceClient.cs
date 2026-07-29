@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
@@ -79,10 +80,18 @@ namespace Taslow.Task.Client
                 message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 var response = await _httpClient.SendAsync(message);
 
-                response.EnsureSuccessStatusCode();
+                EnsureTenantAccess(response);
 
                 return await response.Content
                     .ReadFromJsonAsync<List<string>>() ?? new();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (KeyNotFoundException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -104,9 +113,17 @@ namespace Taslow.Task.Client
                 using var message = new HttpRequestMessage(HttpMethod.Get, $"projects/active/{tenantId}");
                 message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 var response = await _httpClient.SendAsync(message);
-                response.EnsureSuccessStatusCode();
+                EnsureTenantAccess(response);
 
                 return await response.Content.ReadFromJsonAsync<List<ProjectDTO>>() ?? new();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (KeyNotFoundException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -115,6 +132,20 @@ namespace Taslow.Task.Client
             }
         }
 
+        private static void EnsureTenantAccess(HttpResponseMessage response)
+        {
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new UnauthorizedAccessException("Project access was denied.");
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                throw new KeyNotFoundException("Tenant or Project was not found.");
+            }
+
+            response.EnsureSuccessStatusCode();
+        }
 
     }
 }

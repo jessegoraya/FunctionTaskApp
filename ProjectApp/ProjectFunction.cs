@@ -92,6 +92,11 @@ public sealed class ProjectTaskController
             return authFailure;
         }
 
+        if (!await _projectService.IsTenantActiveAsync(tenantId))
+        {
+            return req.CreateResponse(HttpStatusCode.NotFound);
+        }
+
         try
         {
             var projects = await _projectService.GetActiveProjectsByTenantAsync(tenantId);

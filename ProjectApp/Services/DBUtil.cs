@@ -238,11 +238,19 @@ namespace Taslow.Project.DAL
 
         }
 
+        internal const string ProjectIdsForManagerQuery = @"
+            SELECT p.id AS ProjectID
+            FROM p
+            JOIN m IN p.AssociatedManagers
+            WHERE (m.PersonEmail = @email OR m.personEmail = @email)
+              AND (p.TenantID = @tenantID
+                OR p.tenantID = @tenantID
+                OR p.tenantId = @tenantID
+                OR p.tenantid = @tenantID)";
+
         public async Task<List<string>> GetProjectIdsForManagerAsync(string userEmail, string tenantid)
         {
-            var query = new QueryDefinition(
-                "SELECT p.id AS ProjectID FROM p JOIN m IN p.AssociatedManagers WHERE m.personEmail = @email and p.tenantID = @tenantID"
-            )
+            var query = new QueryDefinition(ProjectIdsForManagerQuery)
                 .WithParameter("@email", userEmail)
                 .WithParameter("@tenantID", tenantid);
 
@@ -263,6 +271,29 @@ namespace Taslow.Project.DAL
                 }
             }
             return results;
+        }
+
+        public async Task<bool> IsTenantActiveAsync(string tenantId)
+        {
+            if (string.IsNullOrWhiteSpace(tenantId))
+            {
+                return false;
+            }
+
+            try
+            {
+                var response = await TenantContainer.ReadItemAsync<TenantDocumentDTO>(
+                    tenantId,
+                    new PartitionKey(tenantId));
+                return string.Equals(
+                    response.Resource?.Tenant?.Status,
+                    TenantStatuses.Active,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return false;
+            }
         }
 
         internal const string ActiveProjectsByTenantQuery = @"

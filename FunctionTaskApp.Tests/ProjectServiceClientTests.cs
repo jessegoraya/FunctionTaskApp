@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -54,6 +55,21 @@ public class ProjectServiceClientTests
             handler.RequestUri?.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, typeof(UnauthorizedAccessException))]
+    [InlineData(HttpStatusCode.NotFound, typeof(KeyNotFoundException))]
+    public async Task GetActiveProjectsAsync_PropagatesTenantAccessFailure(
+        HttpStatusCode statusCode,
+        Type exceptionType)
+    {
+        var handler = new RecordingHandler("{}", statusCode);
+        var client = CreateClient("https://example.test/FunctionProjectApp", handler);
+
+        await Assert.ThrowsAsync(
+            exceptionType,
+            () => client.GetActiveProjectsAsync("tenant-1", "test-token"));
+    }
+
     private static ProjectServiceClient CreateClient(string baseUrl, RecordingHandler handler)
     {
         var httpClient = new HttpClient(handler)
@@ -66,7 +82,9 @@ public class ProjectServiceClientTests
             NullLogger<ProjectServiceClient>.Instance);
     }
 
-    private sealed class RecordingHandler(string responseJson) : HttpMessageHandler
+    private sealed class RecordingHandler(
+        string responseJson,
+        HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
         public Uri RequestUri { get; private set; } = null!;
 
@@ -79,7 +97,7 @@ public class ProjectServiceClientTests
             RequestUri = request.RequestUri;
             Method = request.Method;
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return Task.FromResult(new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(responseJson, Encoding.UTF8, "application/json")
             });

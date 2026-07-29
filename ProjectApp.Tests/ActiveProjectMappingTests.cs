@@ -18,6 +18,14 @@ public class ActiveProjectMappingTests
     }
 
     [Fact]
+    public void ManagerProjectsQuery_ShouldUseStoredPersonEmailCasingAndLegacyFallbacks()
+    {
+        Assert.Contains("m.PersonEmail = @email", DBUtil.ProjectIdsForManagerQuery);
+        Assert.Contains("m.personEmail = @email", DBUtil.ProjectIdsForManagerQuery);
+        Assert.Contains("p.tenantID = @tenantID", DBUtil.ProjectIdsForManagerQuery);
+    }
+
+    [Fact]
     public void MapActiveProject_ShouldNormalizeLegacyProjectShape()
     {
         var source = JObject.Parse(@"{

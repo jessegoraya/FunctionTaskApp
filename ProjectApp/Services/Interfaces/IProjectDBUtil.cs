@@ -18,6 +18,8 @@ namespace Taslow.Project.DAL.Interface
 
         Task<List<ProjectDTO>> GetActiveProjectsByTenantAsync(string tenantId);
 
+        Task<bool> IsTenantActiveAsync(string tenantId);
+
         Task<object> GetProjectAssociationsAsync(string tenantId, string projectId, string mode, string role);
 
         Task<Dictionary<string, ProjectDTO>> GetProjectsByIdListAsync(List<string> projectIds, string tenantId);

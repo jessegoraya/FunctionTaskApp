@@ -79,6 +79,9 @@ public class ProjectServiceFlowTests
                 })
                 .ToList());
 
+        public Task<bool> IsTenantActiveAsync(string tenantId)
+            => Task.FromResult(true);
+
         public Task<bool> UpdateProjectClientDomainsAsync(ProjectClientDomainsPatchRequest request)
         {
             if (!_projects.TryGetValue(request.ProjectId, out var project) ||

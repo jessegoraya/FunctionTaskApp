@@ -24,6 +24,9 @@ public sealed class ProjectService : IProjectService
     public Task<List<ProjectDTO>> GetActiveProjectsByTenantAsync(string tenantId)
         => _projectDb.GetActiveProjectsByTenantAsync(tenantId);
 
+    public Task<bool> IsTenantActiveAsync(string tenantId)
+        => _projectDb.IsTenantActiveAsync(tenantId);
+
     public Task<object> GetProjectAssociationsAsync(string tenantId, string projectId, string mode, string role)
         => _projectDb.GetProjectAssociationsAsync(tenantId, projectId, mode, role);
 
