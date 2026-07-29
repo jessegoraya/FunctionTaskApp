@@ -10,11 +10,12 @@ namespace Taslow.Task.Client.Interface;
 {
     Task<List<ProjectDTO>> GetProjectsAsync(
         List<string> projectIds,
-        string tenantId);
+        string tenantId,
+        string accessToken);
 
-    Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId);
+    Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId, string accessToken);
 
-    Task<List<string>> GetProjectIdsForManagerAsync(string tenantId, string manager);
+    Task<List<string>> GetProjectIdsForManagerAsync(string tenantId, string manager, string accessToken);
 }
 
 

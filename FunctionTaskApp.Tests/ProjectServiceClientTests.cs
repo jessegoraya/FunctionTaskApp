@@ -20,7 +20,7 @@ public class ProjectServiceClientTests
         var handler = new RecordingHandler("[]");
         var client = CreateClient(baseUrl, handler);
 
-        await client.GetActiveProjectsAsync("tenant-1");
+        await client.GetActiveProjectsAsync("tenant-1", "test-token");
 
         Assert.Equal(
             "https://example.test/FunctionProjectApp/projects/active/tenant-1",
@@ -33,7 +33,7 @@ public class ProjectServiceClientTests
         var handler = new RecordingHandler("[]");
         var client = CreateClient("https://example.test/FunctionProjectApp", handler);
 
-        await client.GetProjectIdsForManagerAsync("tenant-1", "manager-1");
+        await client.GetProjectIdsForManagerAsync("tenant-1", "manager-1", "test-token");
 
         Assert.Equal(
             "https://example.test/FunctionProjectApp/projects/managed/tenant-1/manager-1",
@@ -46,7 +46,7 @@ public class ProjectServiceClientTests
         var handler = new RecordingHandler("{\"projects\":[]}");
         var client = CreateClient("https://example.test/FunctionProjectApp", handler);
 
-        await client.GetProjectsAsync(["project-1"], "tenant-1");
+        await client.GetProjectsAsync(["project-1"], "tenant-1", "test-token");
 
         Assert.Equal(HttpMethod.Post, handler.Method);
         Assert.Equal(

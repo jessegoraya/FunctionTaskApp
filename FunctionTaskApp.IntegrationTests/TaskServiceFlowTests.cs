@@ -30,7 +30,8 @@ namespace FunctionTaskApp.IntegrationTests
                 "project-a",
                 "admin@example.com",
                 new[] { TenantRoles.TenantAdmin },
-                Array.Empty<string>());
+                Array.Empty<string>(),
+                "test-token");
 
             Assert.Equal("tenant-a", result.TenantId);
             Assert.Equal("project-a", result.Project.ProjectId);
@@ -192,8 +193,14 @@ namespace FunctionTaskApp.IntegrationTests
             }
 
             public Task<TaskContextDTO> GetGroupTaskSetByTenantId(string tenantid, string status) => throw new NotSupportedException();
-            public Task<List<TaskContextDTO>> GetTasksByProjectIdsAsync(string tenantId, IEnumerable<string> projectIds) => throw new NotSupportedException();
-            public Task<List<TaskContextDTO>> GetGTContextDTO(string tenantid, string person) => throw new NotSupportedException();
+            public Task<List<TaskContextDTO>> GetTasksByProjectIdsAsync(
+                string tenantId,
+                IEnumerable<string> projectIds,
+                string accessToken) => throw new NotSupportedException();
+            public Task<List<TaskContextDTO>> GetGTContextDTO(
+                string tenantid,
+                string person,
+                string accessToken) => throw new NotSupportedException();
             public Task<bool> UpdateGroupTaskSet(string id, string tenantid, GroupTaskSet updatedItem) => throw new NotSupportedException();
             public Task<bool> DeleteGroupTaskSet(string id, string tenantid) => throw new NotSupportedException();
             public Task<bool> CreateGroupTaskAsync(string id, string tenantid, GroupTask newGroupTask) => throw new NotSupportedException();
@@ -229,13 +236,21 @@ namespace FunctionTaskApp.IntegrationTests
         {
             public List<ProjectDTO> Projects { get; } = new();
 
-            public Task<List<ProjectDTO>> GetProjectsAsync(List<string> projectIds, string tenantId) =>
+            public Task<List<ProjectDTO>> GetProjectsAsync(
+                List<string> projectIds,
+                string tenantId,
+                string accessToken) =>
                 Task.FromResult(Projects.Where(project => projectIds.Contains(project.Id)).ToList());
 
-            public Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId) =>
+            public Task<List<ProjectDTO>> GetActiveProjectsAsync(
+                string tenantId,
+                string accessToken) =>
                 Task.FromResult(Projects.ToList());
 
-            public Task<List<string>> GetProjectIdsForManagerAsync(string tenantId, string manager) =>
+            public Task<List<string>> GetProjectIdsForManagerAsync(
+                string tenantId,
+                string manager,
+                string accessToken) =>
                 Task.FromResult(Projects
                     .Where(project => project.AssociatedManagers.Any(item =>
                         string.Equals(item.PersonEmail, manager, StringComparison.OrdinalIgnoreCase)))

@@ -36,6 +36,9 @@ namespace Taslow.Shared.Model
         [JsonProperty("associatedManagers")]
         public List<ProjectPersonDTO> AssociatedManagers { get; set; } = new();
 
+        [JsonProperty("associatedPeople")]
+        public List<ProjectPersonDTO> AssociatedPeople { get; set; } = new();
+
         [JsonProperty("ProjectScopes")]
         public List<ProjectScopeDTO> ProjectScopes { get; set; } = new();
 

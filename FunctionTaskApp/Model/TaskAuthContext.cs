@@ -1,6 +1,6 @@
-namespace Taslow.Project.Model;
+namespace Taslow.Task.Model;
 
-public sealed class ProjectAuthContext
+public sealed class TaskAuthContext
 {
     public string TenantId { get; init; } = string.Empty;
 

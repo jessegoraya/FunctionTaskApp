@@ -11,7 +11,8 @@ namespace Taslow.Task.Service.Interface
             string userEmail,
             IReadOnlyCollection<string> roles,
             IReadOnlyCollection<string> leaderMarketCodes,
-            IReadOnlyCollection<string> marketCodeFilter);
+            IReadOnlyCollection<string> marketCodeFilter,
+            string accessToken);
 
         Task<AnalyticsProjectTypeResponse> GetProjectTypeAsync(
             string tenantId,
@@ -19,13 +20,15 @@ namespace Taslow.Task.Service.Interface
             string userEmail,
             IReadOnlyCollection<string> roles,
             IReadOnlyCollection<string> leaderMarketCodes,
-            IReadOnlyCollection<string> marketCodeFilter);
+            IReadOnlyCollection<string> marketCodeFilter,
+            string accessToken);
 
         Task<AnalyticsProjectHierarchyResponse> GetProjectHierarchyAsync(
             string tenantId,
             string projectId,
             string userEmail,
             IReadOnlyCollection<string> roles,
-            IReadOnlyCollection<string> leaderMarketCodes);
+            IReadOnlyCollection<string> leaderMarketCodes,
+            string accessToken);
     }
 }
