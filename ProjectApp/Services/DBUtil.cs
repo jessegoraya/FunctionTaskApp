@@ -959,6 +959,7 @@ namespace Taslow.Project.DAL
                 TenantId = ReadString(project, "tenantId", "TenantId", "tenantID", "TenantID", "tenantid"),
                 ClientDomains = MapClientDomains(project["clientDomains"] ?? project["ClientDomains"]),
                 AssociatedManagers = MapProjectPeople(project["AssociatedManagers"] ?? project["associatedManagers"], "Manager"),
+                AssociatedPeople = MapProjectPeople(project["AssociatedPeople"] ?? project["associatedPeople"], "Person"),
                 ProjectScopes = MapProjectScopes(project["ProjectScopes"] ?? project["projectScopes"] ?? project["scopes"])
             };
         }

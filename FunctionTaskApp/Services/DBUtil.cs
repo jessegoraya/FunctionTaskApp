@@ -147,7 +147,8 @@ namespace Taslow.Task.DAL
 
         public async Task<List<TaskContextDTO>> EnrichTaskDatawithProjectInfo(
             List<TaskContextDTO> taskData,
-            string tenantId)
+            string tenantId,
+            string accessToken)
         {
             var projectIds = taskData
                 .Where(t => !string.IsNullOrEmpty(t.projectid))
@@ -161,7 +162,10 @@ namespace Taslow.Task.DAL
             List<ProjectDTO> projects;
             try
             {
-                projects = await _projectServiceClient.GetProjectsAsync(projectIds, tenantId);
+                projects = await _projectServiceClient.GetProjectsAsync(
+                    projectIds,
+                    tenantId,
+                    accessToken);
             }
             catch (Exception ex)
             {
@@ -278,7 +282,10 @@ namespace Taslow.Task.DAL
         }
 
         //Gets all tasks for an array of projects (e.g. get all tasks where a user is a manager on projects)
-        public async Task<List<TaskContextDTO>> GetTasksByProjectIdsAsync(string tenantId, IEnumerable<string> projectIds)
+        public async Task<List<TaskContextDTO>> GetTasksByProjectIdsAsync(
+            string tenantId,
+            IEnumerable<string> projectIds,
+            string accessToken)
         {
             try
             {
@@ -322,7 +329,7 @@ namespace Taslow.Task.DAL
                 }
 
                 //add call to EnrichTaskDatawithProjectInfo which updates with project info here
-                results = await EnrichTaskDatawithProjectInfo(results, tenantId);
+                results = await EnrichTaskDatawithProjectInfo(results, tenantId, accessToken);
 
                 return results;
             }
@@ -348,7 +355,10 @@ namespace Taslow.Task.DAL
             }
         }
 
-        public async Task<List<TaskContextDTO>> GetGTContextDTO(string tenantid, string person)
+        public async Task<List<TaskContextDTO>> GetGTContextDTO(
+            string tenantid,
+            string person,
+            string accessToken)
         {
             string strQuery =
                 TaskContextDTOSelectQuery() +
@@ -379,7 +389,7 @@ namespace Taslow.Task.DAL
                 }
 
                 //add call to EnrichTaskDatawithProjectInfo which updates with project info here
-                results = await EnrichTaskDatawithProjectInfo(results, tenantid);
+                results = await EnrichTaskDatawithProjectInfo(results, tenantid, accessToken);
 
                 return results;
             }

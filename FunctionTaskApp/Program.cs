@@ -26,6 +26,7 @@ var host = new HostBuilder()
 
         services.AddScoped<ITaskDBUtil, DBUtil>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<ITaskAuthorizationService, TaskAuthorizationService>();
     })
     .Build();
 

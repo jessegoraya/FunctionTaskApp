@@ -24,17 +24,20 @@ namespace Taslow.Task.Function
         private readonly ITaskDBUtil _taskDb;
         private readonly IProjectServiceClient _projSvcClient;
         private readonly IAnalyticsService _analyticsService;
+        private readonly ITaskAuthorizationService _authorizationService;
         private readonly ILogger<FunctionTaskController> _log;
 
         public FunctionTaskController(
             ITaskDBUtil taskDb,
             IProjectServiceClient projSvcClient,
             IAnalyticsService analyticsService,
+            ITaskAuthorizationService authorizationService,
             ILogger<FunctionTaskController> log)
         {
             _taskDb = taskDb;
             _projSvcClient = projSvcClient;
             _analyticsService = analyticsService;
+            _authorizationService = authorizationService;
             _log = log;
         }
 
@@ -77,12 +80,22 @@ namespace Taslow.Task.Function
             string id,
             string tenantid)
         {
+            var authFailure = Authorize(req, tenantid, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
             _log.LogInformation(
                 "GetGroupTaskSetById function processed a request for id: {Id}, tenantid: {TenantId}",
                 id,
                 tenantid);
 
             GroupTaskSet result = await _taskDb.GetGroupTaskSet(id, tenantid);
+            if (result != null && !await CanAccessProjectAsync(auth, tenantid, result.caseid))
+            {
+                return req.CreateResponse(HttpStatusCode.Forbidden);
+            }
 
             return result != null
                 ? await JsonAsync(req, HttpStatusCode.OK, result)
@@ -370,6 +383,12 @@ namespace Taslow.Task.Function
             string projectid,
             string tenantid)
         {
+            var authFailure = await AuthorizeProjectAsync(req, tenantid, projectid);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
             _log.LogInformation(
                 "GetGroupTaskSetByCaseId function processed a request for id: {ProjectId}, tenantid: {TenantId}",
                 projectid,
@@ -388,6 +407,12 @@ namespace Taslow.Task.Function
             string projectid,
             string tenantid)
         {
+            var authFailure = await AuthorizeProjectAsync(req, tenantid, projectid);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
             _log.LogInformation(
                 "GetGroupTaskSetsByProjectId function processed a request for projectid: {ProjectId}, tenantid: {TenantId}",
                 projectid,
@@ -654,9 +679,26 @@ namespace Taslow.Task.Function
             string tenantid,
             string person)
         {
+            var authFailure = Authorize(req, tenantid, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+            try
+            {
+                _authorizationService.EnsureSelf(auth, person);
+            }
+            catch (TaskAuthorizationException ex)
+            {
+                return AuthorizationFailure(req, ex);
+            }
+
             _log.LogInformation("GetGTSDTOyTenantandPerson function processed a request for tenantid: {TenantId}", tenantid);
 
-            List<TaskContextDTO> result = await _taskDb.GetGTContextDTO(tenantid, person);
+            List<TaskContextDTO> result = await _taskDb.GetGTContextDTO(
+                tenantid,
+                person,
+                auth.AccessToken);
 
             return result != null
                 ? await JsonAsync(req, HttpStatusCode.OK, result)
@@ -669,58 +711,106 @@ namespace Taslow.Task.Function
             string tenantid,
             string manager)
         {
+            var authFailure = Authorize(req, tenantid, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+            try
+            {
+                _authorizationService.EnsureProjectManager(auth);
+                _authorizationService.EnsureSelf(auth, manager);
+            }
+            catch (TaskAuthorizationException ex)
+            {
+                return AuthorizationFailure(req, ex);
+            }
+
             if (string.IsNullOrEmpty(manager))
             {
                 return await TextAsync(req, HttpStatusCode.BadRequest, "Manager email is required.");
             }
 
-            var projectIds = await _projSvcClient.GetProjectIdsForManagerAsync(tenantid, manager);
+            var projectIds = await _projSvcClient.GetProjectIdsForManagerAsync(
+                tenantid,
+                manager,
+                auth.AccessToken);
 
             if (projectIds == null || !projectIds.Any())
             {
                 return await JsonAsync(req, HttpStatusCode.OK, new List<TaskContextDTO>());
             }
 
-            var tasks = await _taskDb.GetTasksByProjectIdsAsync(tenantid, projectIds);
+            var tasks = await _taskDb.GetTasksByProjectIdsAsync(
+                tenantid,
+                projectIds,
+                auth.AccessToken);
 
             return await JsonAsync(req, HttpStatusCode.OK, tasks);
         }
 
         [Function("GetAnalyticsPortfolio")]
-        public Task<HttpResponseData> GetAnalyticsPortfolio(
+        public async Task<HttpResponseData> GetAnalyticsPortfolio(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analytics/{tenantId}/portfolio")] HttpRequestData req,
-            string tenantId) =>
-            ExecuteAnalyticsAsync(req, () => _analyticsService.GetPortfolioAsync(
+            string tenantId)
+        {
+            var authFailure = Authorize(req, tenantId, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
+            return await ExecuteAnalyticsAsync(req, () => _analyticsService.GetPortfolioAsync(
                 tenantId,
-                ReadUserEmail(req),
-                ReadList(req, "x-taslow-roles", "x-user-roles", "x-user-role"),
-                ReadList(req, "x-taslow-market-codes"),
-                ReadQueryList(req, "marketCode")));
+                auth.Email,
+                auth.Roles,
+                auth.LeaderMarketCodes,
+                ReadQueryList(req, "marketCode"),
+                auth.AccessToken));
+        }
 
         [Function("GetAnalyticsProjectType")]
-        public Task<HttpResponseData> GetAnalyticsProjectType(
+        public async Task<HttpResponseData> GetAnalyticsProjectType(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analytics/{tenantId}/project-types/{projectType}")] HttpRequestData req,
             string tenantId,
-            string projectType) =>
-            ExecuteAnalyticsAsync(req, () => _analyticsService.GetProjectTypeAsync(
+            string projectType)
+        {
+            var authFailure = Authorize(req, tenantId, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
+            return await ExecuteAnalyticsAsync(req, () => _analyticsService.GetProjectTypeAsync(
                 tenantId,
                 projectType,
-                ReadUserEmail(req),
-                ReadList(req, "x-taslow-roles", "x-user-roles", "x-user-role"),
-                ReadList(req, "x-taslow-market-codes"),
-                ReadQueryList(req, "marketCode")));
+                auth.Email,
+                auth.Roles,
+                auth.LeaderMarketCodes,
+                ReadQueryList(req, "marketCode"),
+                auth.AccessToken));
+        }
 
         [Function("GetAnalyticsProjectHierarchy")]
-        public Task<HttpResponseData> GetAnalyticsProjectHierarchy(
+        public async Task<HttpResponseData> GetAnalyticsProjectHierarchy(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analytics/{tenantId}/projects/{projectId}/hierarchy")] HttpRequestData req,
             string tenantId,
-            string projectId) =>
-            ExecuteAnalyticsAsync(req, () => _analyticsService.GetProjectHierarchyAsync(
+            string projectId)
+        {
+            var authFailure = Authorize(req, tenantId, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
+            return await ExecuteAnalyticsAsync(req, () => _analyticsService.GetProjectHierarchyAsync(
                 tenantId,
                 projectId,
-                ReadUserEmail(req),
-                ReadList(req, "x-taslow-roles", "x-user-roles", "x-user-role"),
-                ReadList(req, "x-taslow-market-codes")));
+                auth.Email,
+                auth.Roles,
+                auth.LeaderMarketCodes,
+                auth.AccessToken));
+        }
 
         private async Task<HttpResponseData> ExecuteAnalyticsAsync<T>(
             HttpRequestData req,
@@ -748,6 +838,94 @@ namespace Taslow.Task.Function
                 return req.CreateResponse(HttpStatusCode.InternalServerError);
             }
         }
+
+        private HttpResponseData Authorize(
+            HttpRequestData req,
+            string tenantId,
+            out TaskAuthContext auth)
+        {
+            try
+            {
+                auth = _authorizationService.Resolve(ToDictionary(req.Headers));
+                _authorizationService.EnsureTenant(auth, tenantId);
+                return null;
+            }
+            catch (TaskAuthorizationException ex)
+            {
+                auth = null;
+                return AuthorizationFailure(req, ex);
+            }
+        }
+
+        private async Task<HttpResponseData> AuthorizeProjectAsync(
+            HttpRequestData req,
+            string tenantId,
+            string projectId)
+        {
+            var authFailure = Authorize(req, tenantId, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
+            return await CanAccessProjectAsync(auth, tenantId, projectId)
+                ? null
+                : req.CreateResponse(HttpStatusCode.Forbidden);
+        }
+
+        private async Task<bool> CanAccessProjectAsync(
+            TaskAuthContext auth,
+            string tenantId,
+            string projectId)
+        {
+            if (auth.Roles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase)
+                || auth.Roles.Contains(TenantRoles.TaslowAdmin, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(auth.Email))
+            {
+                var managedProjectIds = await _projSvcClient.GetProjectIdsForManagerAsync(
+                    tenantId,
+                    auth.Email,
+                    auth.AccessToken);
+                return managedProjectIds.Contains(projectId, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (auth.Roles.Contains(TenantRoles.TenantLeader, StringComparer.OrdinalIgnoreCase))
+            {
+                var projects = await _projSvcClient.GetActiveProjectsAsync(
+                    tenantId,
+                    auth.AccessToken);
+                return projects.Any(project =>
+                    project.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase)
+                    && auth.LeaderMarketCodes.Contains(
+                        project.MarketCode,
+                        StringComparer.OrdinalIgnoreCase));
+            }
+
+            return false;
+        }
+
+        private HttpResponseData AuthorizationFailure(
+            HttpRequestData req,
+            TaskAuthorizationException exception)
+        {
+            _log.LogWarning(
+                "Task authorization rejected. Path={Path}, Status={Status}, Code={Code}.",
+                req.Url.AbsolutePath,
+                (int)exception.StatusCode,
+                exception.Code);
+            return req.CreateResponse(exception.StatusCode);
+        }
+
+        private static Dictionary<string, string> ToDictionary(HttpHeadersCollection headers)
+            => headers.ToDictionary(
+                header => header.Key,
+                header => string.Join(",", header.Value),
+                StringComparer.OrdinalIgnoreCase);
 
         private static async Task<string> ReadBodyAsync(HttpRequestData req)
         {

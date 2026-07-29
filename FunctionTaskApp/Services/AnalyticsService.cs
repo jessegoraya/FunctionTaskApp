@@ -30,10 +30,11 @@ namespace Taslow.Task.Service
             string userEmail,
             IReadOnlyCollection<string> roles,
             IReadOnlyCollection<string> leaderMarketCodes,
-            IReadOnlyCollection<string> marketCodeFilter)
+            IReadOnlyCollection<string> marketCodeFilter,
+            string accessToken)
         {
             var visibleProjects = await GetVisibleProjectsAsync(
-                tenantId, userEmail, roles, leaderMarketCodes, marketCodeFilter);
+                tenantId, userEmail, roles, leaderMarketCodes, marketCodeFilter, accessToken);
             var health = await BuildProjectHealthAsync(tenantId, visibleProjects);
 
             var byType = ProjectTypes.All
@@ -75,7 +76,8 @@ namespace Taslow.Task.Service
             string userEmail,
             IReadOnlyCollection<string> roles,
             IReadOnlyCollection<string> leaderMarketCodes,
-            IReadOnlyCollection<string> marketCodeFilter)
+            IReadOnlyCollection<string> marketCodeFilter,
+            string accessToken)
         {
             var canonicalType = ProjectTypes.All
                 .FirstOrDefault(value => string.Equals(value, projectType, StringComparison.OrdinalIgnoreCase));
@@ -85,7 +87,7 @@ namespace Taslow.Task.Service
             }
 
             var visibleProjects = (await GetVisibleProjectsAsync(
-                    tenantId, userEmail, roles, leaderMarketCodes, marketCodeFilter))
+                    tenantId, userEmail, roles, leaderMarketCodes, marketCodeFilter, accessToken))
                 .Where(project => string.Equals(project.ProjectType, canonicalType, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             var health = await BuildProjectHealthAsync(tenantId, visibleProjects);
@@ -135,10 +137,11 @@ namespace Taslow.Task.Service
             string projectId,
             string userEmail,
             IReadOnlyCollection<string> roles,
-            IReadOnlyCollection<string> leaderMarketCodes)
+            IReadOnlyCollection<string> leaderMarketCodes,
+            string accessToken)
         {
             var visibleProjects = await GetVisibleProjectsAsync(
-                tenantId, userEmail, roles, leaderMarketCodes, Array.Empty<string>());
+                tenantId, userEmail, roles, leaderMarketCodes, Array.Empty<string>(), accessToken);
             var project = visibleProjects.FirstOrDefault(item => item.Id == projectId);
             if (project == null)
             {
@@ -256,7 +259,8 @@ namespace Taslow.Task.Service
             string userEmail,
             IReadOnlyCollection<string> roles,
             IReadOnlyCollection<string> leaderMarketCodes,
-            IReadOnlyCollection<string> marketCodeFilter)
+            IReadOnlyCollection<string> marketCodeFilter,
+            string accessToken)
         {
             var normalizedRoles = new HashSet<string>(roles ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
             if (!normalizedRoles.Overlaps(new[] { "tenant_pm", "tenant_leader", "tenant_admin", "taslow_admin" }))
@@ -264,7 +268,7 @@ namespace Taslow.Task.Service
                 throw new UnauthorizedAccessException("Analytics is available to tenant PM and tenant leader roles.");
             }
 
-            var projects = await _projectClient.GetActiveProjectsAsync(tenantId);
+            var projects = await _projectClient.GetActiveProjectsAsync(tenantId, accessToken);
             var visibleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (normalizedRoles.Contains("tenant_admin") || normalizedRoles.Contains("taslow_admin"))
@@ -274,7 +278,7 @@ namespace Taslow.Task.Service
 
             if (normalizedRoles.Contains("tenant_pm") && !string.IsNullOrWhiteSpace(userEmail))
             {
-                visibleIds.UnionWith(await _projectClient.GetProjectIdsForManagerAsync(tenantId, userEmail));
+                visibleIds.UnionWith(await _projectClient.GetProjectIdsForManagerAsync(tenantId, userEmail, accessToken));
             }
 
             if (normalizedRoles.Contains("tenant_leader"))

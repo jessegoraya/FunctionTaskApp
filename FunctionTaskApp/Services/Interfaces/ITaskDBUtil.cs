@@ -17,9 +17,13 @@ public interface ITaskDBUtil
 
     Task<List<TaskContextDTO>> GetTasksByProjectIdsAsync(
         string tenantId,
-        IEnumerable<string> projectIds);
+        IEnumerable<string> projectIds,
+        string accessToken);
 
-    Task<List<TaskContextDTO>> GetGTContextDTO(string tenantid, string person);
+    Task<List<TaskContextDTO>> GetGTContextDTO(
+        string tenantid,
+        string person,
+        string accessToken);
 
     Task<bool> UpdateGroupTaskSet(string id, string tenantid, GroupTaskSet updatedItem);
     Task<bool> DeleteGroupTaskSet(string id, string tenantid);

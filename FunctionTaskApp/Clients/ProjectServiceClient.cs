@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using Taslow.Shared.Model;
@@ -29,7 +30,7 @@ namespace Taslow.Task.Client
         }
 
         public async Task<List<ProjectDTO>>
-            GetProjectsAsync(List<string> projectIds, string tenantId)
+            GetProjectsAsync(List<string> projectIds, string tenantId, string accessToken)
         {
             try
             {
@@ -39,9 +40,12 @@ namespace Taslow.Task.Client
                     ProjectIds = projectIds
                 };
 
-                var response = await _httpClient.PostAsJsonAsync(
-                    "projects/batch",
-                    request);
+                using var message = new HttpRequestMessage(HttpMethod.Post, "projects/batch")
+                {
+                    Content = JsonContent.Create(request)
+                };
+                message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                var response = await _httpClient.SendAsync(message);
 
                 response.EnsureSuccessStatusCode();
 
@@ -63,13 +67,17 @@ namespace Taslow.Task.Client
         }
 
         public async Task<List<string>> GetProjectIdsForManagerAsync(
-        string tenantId,
-        string manager)
+            string tenantId,
+            string manager,
+            string accessToken)
         {
             try
             {
-                var response = await _httpClient.GetAsync(
-                    $"projects/managed/{tenantId}/{manager}");
+                using var message = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"projects/managed/{tenantId}/{Uri.EscapeDataString(manager)}");
+                message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                var response = await _httpClient.SendAsync(message);
 
                 response.EnsureSuccessStatusCode();
 
@@ -89,11 +97,13 @@ namespace Taslow.Task.Client
             }
         }
 
-        public async Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId)
+        public async Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId, string accessToken)
         {
             try
             {
-                var response = await _httpClient.GetAsync($"projects/active/{tenantId}");
+                using var message = new HttpRequestMessage(HttpMethod.Get, $"projects/active/{tenantId}");
+                message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                var response = await _httpClient.SendAsync(message);
                 response.EnsureSuccessStatusCode();
 
                 return await response.Content.ReadFromJsonAsync<List<ProjectDTO>>() ?? new();

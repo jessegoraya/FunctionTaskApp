@@ -60,6 +60,60 @@ public class ProjectAuthorizationServiceTests
     }
 
     [Fact]
+    public void ProjectManager_ShouldReadOnlyItsOwnManagedProjectRoute()
+    {
+        var auth = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            "manager@bloomsky.onmicrosoft.com",
+            TenantRoles.TenantPm)));
+
+        _authorization.EnsureCanReadManagedProjects(
+            auth,
+            "tenant-a",
+            "manager@bloomsky.onmicrosoft.com");
+        Assert.Throws<ProjectAuthorizationException>(() =>
+            _authorization.EnsureCanReadManagedProjects(
+                auth,
+                "tenant-a",
+                "other@bloomsky.onmicrosoft.com"));
+    }
+
+    [Fact]
+    public void ProjectVisibility_ShouldFollowSignedRoleAndAlignmentClaims()
+    {
+        var projects = new[]
+        {
+            Project(
+                "project-a",
+                "CIVILIAN",
+                "manager@bloomsky.onmicrosoft.com",
+                "member@bloomsky.onmicrosoft.com"),
+            Project(
+                "project-b",
+                "DEFENSE",
+                "other@bloomsky.onmicrosoft.com",
+                "other-member@bloomsky.onmicrosoft.com")
+        };
+        var pm = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            "manager@bloomsky.onmicrosoft.com",
+            TenantRoles.TenantPm)));
+        var member = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            "member@bloomsky.onmicrosoft.com",
+            TenantRoles.TenantUser)));
+        var leader = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            "leader@bloomsky.onmicrosoft.com",
+            TenantRoles.TenantLeader,
+            leaderMarketCodes: new[] { "DEFENSE" })));
+
+        Assert.Equal("project-a", Assert.Single(ProjectAccessPolicy.FilterVisible(pm, projects)).Id);
+        Assert.Equal("project-a", Assert.Single(ProjectAccessPolicy.FilterVisible(member, projects)).Id);
+        Assert.Equal("project-b", Assert.Single(ProjectAccessPolicy.FilterVisible(leader, projects)).Id);
+    }
+
+    [Fact]
     public void BrowserSuppliedRoleHeadersWithoutSession_ShouldBeRejected()
     {
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -75,7 +129,11 @@ public class ProjectAuthorizationServiceTests
     private static Dictionary<string, string> CookieHeaders(string token)
         => new(StringComparer.OrdinalIgnoreCase) { ["Cookie"] = $"taslow_auth={token}" };
 
-    private static string IssueToken(string tenantId, string email, params string[] roles)
+    private static string IssueToken(
+        string tenantId,
+        string email,
+        string role,
+        string[]? leaderMarketCodes = null)
     {
         var now = DateTime.UtcNow;
         var claims = new List<Claim>
@@ -84,7 +142,9 @@ public class ProjectAuthorizationServiceTests
             new(TaslowClaimTypes.TenantId, tenantId),
             new(ClaimTypes.Email, email)
         };
-        claims.AddRange(roles.Select(role => new Claim(TaslowClaimTypes.Roles, role)));
+        claims.Add(new Claim(TaslowClaimTypes.Roles, role));
+        claims.AddRange((leaderMarketCodes ?? Array.Empty<string>())
+            .Select(code => new Claim(TaslowClaimTypes.LeaderMarketCodes, code)));
 
         var token = new JwtSecurityToken(
             issuer: "taslow-test-auth",
@@ -98,4 +158,23 @@ public class ProjectAuthorizationServiceTests
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    private static ProjectDTO Project(
+        string id,
+        string marketCode,
+        string manager,
+        string member)
+        => new()
+        {
+            Id = id,
+            MarketCode = marketCode,
+            AssociatedManagers =
+            [
+                new ProjectPersonDTO { PersonEmail = manager }
+            ],
+            AssociatedPeople =
+            [
+                new ProjectPersonDTO { PersonEmail = member }
+            ]
+        };
 }

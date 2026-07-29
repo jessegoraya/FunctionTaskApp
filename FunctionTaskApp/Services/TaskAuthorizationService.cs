@@ -1,26 +1,27 @@
+#nullable enable
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using Taslow.Project.Model;
-using Taslow.Project.Service.Interface;
 using Taslow.Shared.Model;
+using Taslow.Task.Model;
+using Taslow.Task.Service.Interface;
 
-namespace Taslow.Project.Service;
+namespace Taslow.Task.Service;
 
-public sealed class ProjectAuthorizationService : IProjectAuthorizationService
+public sealed class TaskAuthorizationService : ITaskAuthorizationService
 {
     private readonly IConfiguration _configuration;
     private readonly JwtSecurityTokenHandler _handler = new() { MapInboundClaims = false };
 
-    public ProjectAuthorizationService(IConfiguration configuration)
+    public TaskAuthorizationService(IConfiguration configuration)
     {
         _configuration = configuration;
     }
 
-    public ProjectAuthContext Resolve(IDictionary<string, string> headers)
+    public TaskAuthContext Resolve(IDictionary<string, string> headers)
     {
         var token = ExtractBearerToken(headers) ?? ExtractCookieToken(headers);
         if (string.IsNullOrWhiteSpace(token))
@@ -64,7 +65,7 @@ public sealed class ProjectAuthorizationService : IProjectAuthorizationService
                 throw Unauthorized(AuthErrorCodes.TokenInvalid, "Taslow token is missing tenant or subject claims.");
             }
 
-            return new ProjectAuthContext
+            return new TaskAuthContext
             {
                 TenantId = tenantId,
                 Subject = subject,
@@ -81,7 +82,7 @@ public sealed class ProjectAuthorizationService : IProjectAuthorizationService
         {
             throw Unauthorized(AuthErrorCodes.TokenExpired, "Taslow session is expired.");
         }
-        catch (ProjectAuthorizationException)
+        catch (TaskAuthorizationException)
         {
             throw;
         }
@@ -91,55 +92,30 @@ public sealed class ProjectAuthorizationService : IProjectAuthorizationService
         }
     }
 
-    public void EnsureCanCreate(ProjectAuthContext auth, string tenantId)
-    {
-        EnsureTenant(auth, tenantId);
-        if (!auth.Roles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase))
-        {
-            throw Forbidden("Only a Tenant Admin can create a Project.");
-        }
-    }
-
-    public void EnsureCanManage(ProjectAuthContext auth, string tenantId)
-    {
-        EnsureTenant(auth, tenantId);
-        if (!auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase))
-        {
-            throw Forbidden("Only an assigned Project Manager can edit this Project.");
-        }
-
-        if (string.IsNullOrWhiteSpace(auth.Email))
-        {
-            throw Unauthorized(AuthErrorCodes.TokenInvalid, "Taslow session is missing the user email claim.");
-        }
-    }
-
-    public void EnsureCanReadManagedProjects(
-        ProjectAuthContext auth,
-        string tenantId,
-        string managerEmail)
-    {
-        EnsureTenant(auth, tenantId);
-        if (auth.Roles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase)
-            || auth.Roles.Contains(TenantRoles.TaslowAdmin, StringComparer.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (!auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(auth.Email)
-            || !auth.Email.Equals(managerEmail?.Trim(), StringComparison.OrdinalIgnoreCase))
-        {
-            throw Forbidden("Caller is not authorized for another Project Manager's Projects.");
-        }
-    }
-
-    public void EnsureTenant(ProjectAuthContext auth, string tenantId)
+    public void EnsureTenant(TaskAuthContext auth, string tenantId)
     {
         if (string.IsNullOrWhiteSpace(tenantId)
             || !auth.TenantId.Equals(tenantId.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             throw Forbidden("Caller is not authorized for this tenant.");
+        }
+    }
+
+    public void EnsureSelf(TaskAuthContext auth, string email)
+    {
+        if (string.IsNullOrWhiteSpace(auth.Email)
+            || string.IsNullOrWhiteSpace(email)
+            || !auth.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw Forbidden("Caller is not authorized for another user's Task context.");
+        }
+    }
+
+    public void EnsureProjectManager(TaskAuthContext auth)
+    {
+        if (!auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase))
+        {
+            throw Forbidden("Only a Project Manager can request managed-Project Task context.");
         }
     }
 
@@ -204,16 +180,16 @@ public sealed class ProjectAuthorizationService : IProjectAuthorizationService
             .Select(claim => claim.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value));
 
-    private static ProjectAuthorizationException Unauthorized(string code, string message)
+    private static TaskAuthorizationException Unauthorized(string code, string message)
         => new(HttpStatusCode.Unauthorized, code, message);
 
-    private static ProjectAuthorizationException Forbidden(string message)
+    private static TaskAuthorizationException Forbidden(string message)
         => new(HttpStatusCode.Forbidden, AuthErrorCodes.RoleForbidden, message);
 }
 
-public sealed class ProjectAuthorizationException : Exception
+public sealed class TaskAuthorizationException : Exception
 {
-    public ProjectAuthorizationException(HttpStatusCode statusCode, string code, string message)
+    public TaskAuthorizationException(HttpStatusCode statusCode, string code, string message)
         : base(message)
     {
         StatusCode = statusCode;

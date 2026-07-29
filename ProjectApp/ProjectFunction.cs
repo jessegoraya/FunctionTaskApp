@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Taslow.Project.Model;
+using Taslow.Project.Service;
 using Taslow.Project.Service.Interface;
 using Taslow.Shared.Model;
 using Taslow.Shared.Security;
@@ -17,17 +18,20 @@ public sealed class ProjectTaskController
 {
     private readonly IProjectService _projectService;
     private readonly IProjectRequestValidator _validator;
+    private readonly IProjectAuthorizationService _authorizationService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ProjectTaskController> _logger;
 
     public ProjectTaskController(
         IProjectService projectService,
         IProjectRequestValidator validator,
+        IProjectAuthorizationService authorizationService,
         IConfiguration configuration,
         ILogger<ProjectTaskController> logger)
     {
         _projectService = projectService;
         _validator = validator;
+        _authorizationService = authorizationService;
         _configuration = configuration;
         _logger = logger;
     }
@@ -43,6 +47,20 @@ public sealed class ProjectTaskController
         if (tenant == null)
         {
             return req.CreateResponse(HttpStatusCode.BadRequest);
+        }
+
+        var authFailure = Authorize(req, tenant, out var auth);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+        try
+        {
+            _authorizationService.EnsureCanCreate(auth, tenant);
+        }
+        catch (ProjectAuthorizationException ex)
+        {
+            return AuthorizationFailure(req, ex);
         }
 
         try
@@ -68,10 +86,17 @@ public sealed class ProjectTaskController
             return await Json(req, HttpStatusCode.BadRequest, "TenantId is required.");
         }
 
+        var authFailure = Authorize(req, tenantId, out var auth);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
         try
         {
             var projects = await _projectService.GetActiveProjectsByTenantAsync(tenantId);
-            return await Json(req, HttpStatusCode.OK, projects);
+            var visibleProjects = ProjectAccessPolicy.FilterVisible(auth, projects).ToList();
+            return await Json(req, HttpStatusCode.OK, visibleProjects);
         }
         catch (Exception ex)
         {
@@ -86,6 +111,12 @@ public sealed class ProjectTaskController
         string tenantId,
         string projectId)
     {
+        var authFailure = Authorize(req, tenantId, out _);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
         try
         {
             var mode = (GetQueryValue(req, "mode") ?? "separate").ToLowerInvariant();
@@ -110,8 +141,15 @@ public sealed class ProjectTaskController
             return await Json(req, HttpStatusCode.BadRequest, "Invalid request payload.");
         }
 
+        var authFailure = Authorize(req, request!.TenantId, out var auth);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
         var projects = await _projectService.GetProjectsByIdListAsync(request!.ProjectIds, request.TenantId);
-        return await Json(req, HttpStatusCode.OK, new ProjectBatchResponse { Projects = projects.Values.ToList() });
+        var visibleProjects = ProjectAccessPolicy.FilterVisible(auth, projects.Values).ToList();
+        return await Json(req, HttpStatusCode.OK, new ProjectBatchResponse { Projects = visibleProjects });
     }
 
     [Function("GetProjectAgentContextBatch")]
@@ -218,9 +256,56 @@ public sealed class ProjectTaskController
         string tenantId,
         string manager)
     {
+        var authFailure = Authorize(req, tenantId, out var auth);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+        try
+        {
+            _authorizationService.EnsureCanReadManagedProjects(auth, tenantId, manager);
+        }
+        catch (ProjectAuthorizationException ex)
+        {
+            return AuthorizationFailure(req, ex);
+        }
+
         var projectIds = await _projectService.GetProjectIdsForManagerAsync(manager, tenantId);
         return await Json(req, HttpStatusCode.OK, projectIds);
     }
+
+    private HttpResponseData? Authorize(
+        HttpRequestData req,
+        string tenantId,
+        out ProjectAuthContext auth)
+    {
+        try
+        {
+            auth = _authorizationService.Resolve(ToDictionary(req));
+            _authorizationService.EnsureTenant(auth, tenantId);
+            return null;
+        }
+        catch (ProjectAuthorizationException ex)
+        {
+            auth = new ProjectAuthContext();
+            return AuthorizationFailure(req, ex);
+        }
+    }
+
+    private static HttpResponseData AuthorizationFailure(
+        HttpRequestData req,
+        ProjectAuthorizationException exception)
+    {
+        var response = req.CreateResponse(exception.StatusCode);
+        response.Headers.Add("x-taslow-error-code", exception.Code);
+        return response;
+    }
+
+    private static Dictionary<string, string> ToDictionary(HttpRequestData req)
+        => req.Headers.ToDictionary(
+            header => header.Key,
+            header => string.Join(",", header.Value),
+            StringComparer.OrdinalIgnoreCase);
 
     private static async Task<T?> ReadBodyAsync<T>(HttpRequestData req) where T : class
     {
