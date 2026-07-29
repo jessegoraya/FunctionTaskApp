@@ -868,9 +868,20 @@ namespace Taslow.Task.Function
                 return authFailure;
             }
 
-            return await CanAccessProjectAsync(auth, tenantId, projectId)
-                ? null
-                : req.CreateResponse(HttpStatusCode.Forbidden);
+            try
+            {
+                return await CanAccessProjectAsync(auth, tenantId, projectId)
+                    ? null
+                    : req.CreateResponse(HttpStatusCode.Forbidden);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return req.CreateResponse(HttpStatusCode.Forbidden);
+            }
+            catch (KeyNotFoundException)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
         }
 
         private async Task<bool> CanAccessProjectAsync(

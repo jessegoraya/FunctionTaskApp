@@ -42,6 +42,15 @@ public class ProjectServiceTests
         Assert.Same(expected, actual);
     }
 
+    [Fact]
+    public async Task IsTenantActiveAsync_ShouldReturnRepositoryResult()
+    {
+        var repository = new RecordingProjectDbUtil { TenantIsActive = true };
+        var service = new ProjectService(repository);
+
+        Assert.True(await service.IsTenantActiveAsync("tenant-a"));
+    }
+
     private static string Hash(string value)
         => BitConverter.ToString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
@@ -50,6 +59,8 @@ public class ProjectServiceTests
         public TaskProject? InsertedProject { get; private set; }
 
         public ProjectScopeLinkResponse ScopeLinkResponse { get; set; } = new();
+
+        public bool TenantIsActive { get; set; }
 
         public Task<bool> InsertProject(TaskProject item)
         {
@@ -65,6 +76,9 @@ public class ProjectServiceTests
 
         public Task<List<ProjectDTO>> GetActiveProjectsByTenantAsync(string tenantId)
             => Task.FromResult(new List<ProjectDTO>());
+
+        public Task<bool> IsTenantActiveAsync(string tenantId)
+            => Task.FromResult(TenantIsActive);
 
         public Task<object> GetProjectAssociationsAsync(string tenantId, string projectId, string mode, string role)
             => Task.FromResult<object>(new object());
