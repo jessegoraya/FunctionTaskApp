@@ -1,5 +1,14 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.12
+
+- Makes the shared Cosmos DB connection mode environment-configurable while preserving the
+  existing default when no mode is supplied.
+- Enables the VNet-integrated Test Functions to use Gateway mode and reduce outbound TCP/SNAT
+  pressure observed during the governed peak-load profile.
+- Rejects unsupported connection-mode values and covers connection-string and managed-identity
+  client creation with unit tests.
+
 ## v0.1.0-dev.11
 
 - Enriches Project agent-context users with canonical display names from the tenant directory
