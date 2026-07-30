@@ -9,7 +9,6 @@ using Taslow.Shared.Model;
 using Taslow.Task.Client;
 using Taslow.Task.DAL.Interface;
 using Taslow.Task.Client.Interface;
-using Taslow.Shared.Infrastructure;
 
 
 namespace Taslow.Task.DAL
@@ -22,9 +21,11 @@ namespace Taslow.Task.DAL
         private const string DatabaseName = "bloomskyHealth";
         private const string ContainerName = "GroupTaskSet";
 
-        public DBUtil(IProjectServiceClient projectServiceClient)
+        public DBUtil(
+            CosmosClient cosmosClient,
+            IProjectServiceClient projectServiceClient)
         {
-            cosmosClient = CosmosClientFactory.Create(Environment.GetEnvironmentVariable);
+            this.cosmosClient = cosmosClient;
             var databaseName = Environment.GetEnvironmentVariable("TaskCosmosDatabaseName")
                 ?? Environment.GetEnvironmentVariable("CosmosDBDatabaseName")
                 ?? DatabaseName;

@@ -24,7 +24,7 @@ var host = new HostBuilder()
             client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/");
         });
 
-        services.AddScoped<ITaskDBUtil, DBUtil>();
+        services.AddTaskDataAccess();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<ITaskAuthorizationService, TaskAuthorizationService>();
     })
