@@ -717,7 +717,7 @@ namespace Taslow.Tenant.Service
                 ["client_id"] = clientId,
                 ["response_type"] = "code",
                 ["redirect_uri"] = redirectUri,
-                ["response_mode"] = "query",
+                ["response_mode"] = "form_post",
                 ["scope"] = _configuration["Auth:Microsoft:Scopes"] ?? "openid profile email User.Read",
                 ["state"] = state,
                 ["prompt"] = "select_account"
