@@ -1,5 +1,13 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.13
+
+- Posts Microsoft authorization callbacks as form data so large Entra authorization codes do
+  not exceed the Azure Functions query-string limit.
+- Retains GET handling for administrator-consent callbacks while accepting POST for interactive
+  user authentication.
+- Adds regression coverage for 4 KB authorization codes and form-posted provider errors.
+
 ## v0.1.0-dev.12
 
 - Makes the shared Cosmos DB connection mode environment-configurable while preserving the

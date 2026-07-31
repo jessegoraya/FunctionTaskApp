@@ -95,10 +95,10 @@ namespace Taslow.Tenant.Function
 
         [Function("MicrosoftAuthCallback")]
         public Task<HttpResponseData> MicrosoftAuthCallback(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "auth/callback/microsoft")] HttpRequestData req)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "auth/callback/microsoft")] HttpRequestData req)
             => ExecuteAsync(req, async correlationId =>
             {
-                var callback = ParseMicrosoftCallback(req.Url);
+                var callback = await ParseMicrosoftCallbackAsync(req);
                 if (callback.Kind == MicrosoftCallbackKind.ProviderError)
                 {
                     throw new TenantApiException(
@@ -304,8 +304,31 @@ namespace Taslow.Tenant.Function
         }
 
         internal static MicrosoftCallbackData ParseMicrosoftCallback(Uri url)
+            => ParseMicrosoftCallback(ParseUrlEncoded(url.Query));
+
+        internal static MicrosoftCallbackData ParseMicrosoftCallbackForm(string formBody)
+            => ParseMicrosoftCallback(ParseUrlEncoded(formBody));
+
+        private static async Task<MicrosoftCallbackData> ParseMicrosoftCallbackAsync(HttpRequestData req)
         {
-            var query = ParseQuery(url);
+            if (!req.Method.Equals("POST", StringComparison.OrdinalIgnoreCase))
+            {
+                return ParseMicrosoftCallback(req.Url);
+            }
+
+            using var reader = new StreamReader(
+                req.Body,
+                Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: true,
+                bufferSize: 1024,
+                leaveOpen: true);
+            var formBody = await reader.ReadToEndAsync();
+            return ParseMicrosoftCallbackForm(formBody);
+        }
+
+        private static MicrosoftCallbackData ParseMicrosoftCallback(
+            IReadOnlyDictionary<string, string> query)
+        {
             if (query.TryGetValue("error", out var providerError)
                 && !string.IsNullOrWhiteSpace(providerError))
             {
@@ -358,16 +381,15 @@ namespace Taslow.Tenant.Function
                 ErrorDescription: "Microsoft callback did not include a successful administrator consent result or an authorization code and state.");
         }
 
-        private static Dictionary<string, string> ParseQuery(Uri url)
+        private static Dictionary<string, string> ParseUrlEncoded(string encoded)
         {
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var query = url.Query;
-            if (string.IsNullOrWhiteSpace(query))
+            if (string.IsNullOrWhiteSpace(encoded))
             {
                 return result;
             }
 
-            foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+            foreach (var part in encoded.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
             {
                 var pair = part.Split('=', 2);
                 var key = Uri.UnescapeDataString(pair[0].Replace("+", " "));

@@ -29,6 +29,28 @@ namespace TenantApp.Tests
         }
 
         [Fact]
+        public void ParseMicrosoftCallbackForm_ShouldRecognizeLargeAuthorizationCodeLogin()
+        {
+            var authorizationCode = new string('a', 4_096);
+            var callback = TenantAuthFunction.ParseMicrosoftCallbackForm(
+                $"code={authorizationCode}&state=signed-login-state");
+
+            Assert.Equal(TenantAuthFunction.MicrosoftCallbackKind.AuthorizationCode, callback.Kind);
+            Assert.Equal(authorizationCode, callback.Code);
+            Assert.Equal("signed-login-state", callback.State);
+        }
+
+        [Fact]
+        public void ParseMicrosoftCallbackForm_ShouldDecodeProviderErrors()
+        {
+            var callback = TenantAuthFunction.ParseMicrosoftCallbackForm(
+                "error=access_denied&error_description=Administrator+declined");
+
+            Assert.Equal(TenantAuthFunction.MicrosoftCallbackKind.ProviderError, callback.Kind);
+            Assert.Equal("Administrator declined", callback.ErrorDescription);
+        }
+
+        [Fact]
         public void ParseMicrosoftCallback_ShouldPreserveProviderErrorDescription()
         {
             var callback = TenantAuthFunction.ParseMicrosoftCallback(new Uri(
