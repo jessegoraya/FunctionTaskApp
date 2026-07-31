@@ -60,6 +60,31 @@ public class ProjectAuthorizationServiceTests
     }
 
     [Fact]
+    public void TenantAdminSession_ShouldReadProjectDetailsWithoutEditPermission()
+    {
+        var auth = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            "admin@bloomsky.onmicrosoft.com",
+            TenantRoles.TenantAdmin)));
+
+        _authorization.EnsureCanReadProjectDetails(auth, "tenant-a");
+        Assert.Throws<ProjectAuthorizationException>(() =>
+            _authorization.EnsureCanManage(auth, "tenant-a"));
+    }
+
+    [Fact]
+    public void TenantUserSession_ShouldNotReadProjectDetails()
+    {
+        var auth = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            "user@bloomsky.onmicrosoft.com",
+            TenantRoles.TenantUser)));
+
+        Assert.Throws<ProjectAuthorizationException>(() =>
+            _authorization.EnsureCanReadProjectDetails(auth, "tenant-a"));
+    }
+
+    [Fact]
     public void ProjectManager_ShouldReadOnlyItsOwnManagedProjectRoute()
     {
         var auth = _authorization.Resolve(CookieHeaders(IssueToken(
