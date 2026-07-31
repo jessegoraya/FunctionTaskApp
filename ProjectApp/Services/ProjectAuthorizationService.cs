@@ -114,6 +114,18 @@ public sealed class ProjectAuthorizationService : IProjectAuthorizationService
         }
     }
 
+    public void EnsureCanReadProjectDetails(ProjectAuthContext auth, string tenantId)
+    {
+        EnsureTenant(auth, tenantId);
+        if (!auth.Roles.Any(role =>
+                role.Equals(TenantRoles.TenantAdmin, StringComparison.OrdinalIgnoreCase)
+                || role.Equals(TenantRoles.TaslowAdmin, StringComparison.OrdinalIgnoreCase)
+                || role.Equals(TenantRoles.TenantPm, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw Forbidden("Only a Tenant Admin, Taslow Admin, or Project Manager can read Project details.");
+        }
+    }
+
     public void EnsureCanReadManagedProjects(
         ProjectAuthContext auth,
         string tenantId,

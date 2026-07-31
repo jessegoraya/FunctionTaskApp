@@ -12,6 +12,8 @@ public interface IProjectAuthorizationService
 
     void EnsureCanManage(ProjectAuthContext auth, string tenantId);
 
+    void EnsureCanReadProjectDetails(ProjectAuthContext auth, string tenantId);
+
     void EnsureCanReadManagedProjects(
         ProjectAuthContext auth,
         string tenantId,

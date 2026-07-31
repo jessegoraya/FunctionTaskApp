@@ -132,7 +132,7 @@ public sealed class ProjectManagementFunctions
         string tenantId,
         string projectId)
     {
-        var authFailure = await EnsureManagerAuthorizationAsync(req, tenantId, projectId);
+        var authFailure = await EnsureProjectDetailAuthorizationAsync(req, tenantId, projectId);
         if (authFailure != null)
         {
             return authFailure;
@@ -253,6 +253,41 @@ public sealed class ProjectManagementFunctions
         if (!await _projectDb.IsManagerForProjectAsync(tenantId, projectId, auth.Email))
         {
             return await Json(req, HttpStatusCode.Forbidden, "Caller is not authorized to edit this project.");
+        }
+
+        return null;
+    }
+
+    private async Task<HttpResponseData?> EnsureProjectDetailAuthorizationAsync(
+        HttpRequestData req,
+        string tenantId,
+        string projectId)
+    {
+        ProjectAuthContext auth;
+        try
+        {
+            auth = _authorizationService.Resolve(ToDictionary(req));
+            _authorizationService.EnsureCanReadProjectDetails(auth, tenantId);
+        }
+        catch (ProjectAuthorizationException ex)
+        {
+            _logger.LogWarning(
+                "Project detail authorization rejected. TenantId={TenantId}, Status={Status}, Code={Code}.",
+                tenantId,
+                (int)ex.StatusCode,
+                ex.Code);
+            return await AuthorizationError(req, ex);
+        }
+
+        if (auth.Roles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase)
+            || auth.Roles.Contains(TenantRoles.TaslowAdmin, StringComparer.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!await _projectDb.IsManagerForProjectAsync(tenantId, projectId, auth.Email))
+        {
+            return await Json(req, HttpStatusCode.Forbidden, "Caller is not authorized to read this project.");
         }
 
         return null;
