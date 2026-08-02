@@ -52,6 +52,15 @@ public sealed class ProjectRequestValidator : IProjectRequestValidator
            && request.ProjectIds != null
            && request.ProjectIds.Any();
 
+    public bool IsValid(ProjectParticipantCandidateRequest? request)
+        => request != null
+           && !string.IsNullOrWhiteSpace(request.TenantId)
+           && request.ParticipantEmails != null
+           && request.ParticipantEmails.Count is > 0 and <= 100
+           && request.ParticipantEmails.All(email =>
+               System.Net.Mail.MailAddress.TryCreate(email, out var address)
+               && string.Equals(address.Address, email.Trim(), StringComparison.OrdinalIgnoreCase));
+
     public bool IsValid(ProjectClientDomainsPatchRequest? request)
         => request != null
            && !string.IsNullOrWhiteSpace(request.TenantId)

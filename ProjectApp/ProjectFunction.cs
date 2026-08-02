@@ -185,6 +185,37 @@ public sealed class ProjectTaskController
         }
     }
 
+    [Function("GetParticipantProjectCandidates")]
+    public async Task<HttpResponseData> GetParticipantProjectCandidates(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "internal/projects/participant-candidates")] HttpRequestData req)
+    {
+        if (!WorkloadRequestAuthorizer.IsEmailIngestionAuthorized(
+            GetHeader(req, WorkloadRequestAuthorizer.HeaderName)))
+        {
+            return req.CreateResponse(HttpStatusCode.Unauthorized);
+        }
+
+        var request = await ReadBodyAsync<ProjectParticipantCandidateRequest>(req);
+        if (!_validator.IsValid(request))
+        {
+            return await Json(req, HttpStatusCode.BadRequest, "Invalid request payload.");
+        }
+
+        try
+        {
+            var response = await _projectService.GetParticipantProjectCandidatesAsync(request!);
+            return await Json(req, HttpStatusCode.OK, response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Unhandled exception in GetParticipantProjectCandidates. TenantId={TenantId}",
+                request!.TenantId);
+            return req.CreateResponse(HttpStatusCode.InternalServerError);
+        }
+    }
+
     [Function("PatchProjectClientDomains")]
     public async Task<HttpResponseData> PatchProjectClientDomains(
         [HttpTrigger(AuthorizationLevel.Function, "patch", Route = "internal/projects/client-domains")] HttpRequestData req)

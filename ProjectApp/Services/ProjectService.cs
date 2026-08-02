@@ -36,6 +36,40 @@ public sealed class ProjectService : IProjectService
     public Task<ProjectAgentContextResponse> GetProjectAgentContextBatchAsync(ProjectAgentContextRequest request)
         => _projectDb.GetProjectAgentContextBatchAsync(request);
 
+    public async Task<ProjectParticipantCandidateResponse> GetParticipantProjectCandidatesAsync(
+        ProjectParticipantCandidateRequest request)
+    {
+        var participantEmails = request.ParticipantEmails
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Select(email => email.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var projects = await _projectDb.GetActiveProjectsByTenantAsync(request.TenantId);
+
+        var candidates = projects
+            .Select(project => new ProjectParticipantCandidate
+            {
+                ProjectId = project.Id,
+                MatchedParticipantEmails = project.AssociatedPeople
+                    .Concat(project.AssociatedManagers)
+                    .Select(person => person.PersonEmail?.Trim().ToLowerInvariant() ?? string.Empty)
+                    .Where(participantEmails.Contains)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(email => email, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .Where(candidate => candidate.MatchedParticipantEmails.Count > 0)
+            .OrderByDescending(candidate => candidate.MatchedParticipantEmails.Count)
+            .ThenBy(candidate => candidate.ProjectId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new ProjectParticipantCandidateResponse
+        {
+            TenantId = request.TenantId,
+            Projects = candidates
+        };
+    }
+
     public Task<bool> UpdateProjectClientDomainsAsync(ProjectClientDomainsPatchRequest request)
         => _projectDb.UpdateProjectClientDomainsAsync(request);
 

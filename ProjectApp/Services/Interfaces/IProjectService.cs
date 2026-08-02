@@ -17,6 +17,9 @@ public interface IProjectService
 
     Task<ProjectAgentContextResponse> GetProjectAgentContextBatchAsync(ProjectAgentContextRequest request);
 
+    Task<ProjectParticipantCandidateResponse> GetParticipantProjectCandidatesAsync(
+        ProjectParticipantCandidateRequest request);
+
     Task<bool> UpdateProjectClientDomainsAsync(ProjectClientDomainsPatchRequest request);
 
     Task<ProjectScopeLinkResponse> LinkProjectScopeGroupTaskSetsAsync(ProjectScopeLinkRequest request);
