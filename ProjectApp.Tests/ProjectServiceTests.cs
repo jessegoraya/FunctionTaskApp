@@ -51,6 +51,59 @@ public class ProjectServiceTests
         Assert.True(await service.IsTenantActiveAsync("tenant-a"));
     }
 
+    [Fact]
+    public async Task ParticipantCandidates_ShouldPreferProjectsWithTheMostParticipantOverlap()
+    {
+        var repository = new RecordingProjectDbUtil
+        {
+            ActiveProjects = new List<ProjectDTO>
+            {
+                new()
+                {
+                    Id = "education",
+                    AssociatedPeople = new List<ProjectPersonDTO>
+                    {
+                        new() { PersonEmail = "alex@bloomsky.onmicrosoft.com" }
+                    }
+                },
+                new()
+                {
+                    Id = "va-radiology",
+                    AssociatedPeople = new List<ProjectPersonDTO>
+                    {
+                        new() { PersonEmail = "ALEX@bloomsky.onmicrosoft.com" },
+                        new() { PersonEmail = "paco@bloomsky.onmicrosoft.com" }
+                    }
+                },
+                new()
+                {
+                    Id = "unrelated",
+                    AssociatedPeople = new List<ProjectPersonDTO>
+                    {
+                        new() { PersonEmail = "tessa@bloomsky.onmicrosoft.com" }
+                    }
+                }
+            }
+        };
+        var service = new ProjectService(repository);
+
+        var response = await service.GetParticipantProjectCandidatesAsync(
+            new ProjectParticipantCandidateRequest
+            {
+                TenantId = "tenant-a",
+                ParticipantEmails = new List<string>
+                {
+                    "alex@bloomsky.onmicrosoft.com",
+                    "paco@bloomsky.onmicrosoft.com"
+                }
+            });
+
+        Assert.Equal(new[] { "va-radiology", "education" }, response.Projects.Select(p => p.ProjectId));
+        Assert.Equal(
+            new[] { "alex@bloomsky.onmicrosoft.com", "paco@bloomsky.onmicrosoft.com" },
+            response.Projects[0].MatchedParticipantEmails);
+    }
+
     private static string Hash(string value)
         => BitConverter.ToString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
@@ -61,6 +114,8 @@ public class ProjectServiceTests
         public ProjectScopeLinkResponse ScopeLinkResponse { get; set; } = new();
 
         public bool TenantIsActive { get; set; }
+
+        public List<ProjectDTO> ActiveProjects { get; set; } = new();
 
         public Task<bool> InsertProject(TaskProject item)
         {
@@ -75,7 +130,7 @@ public class ProjectServiceTests
             => Task.FromResult(new List<string>());
 
         public Task<List<ProjectDTO>> GetActiveProjectsByTenantAsync(string tenantId)
-            => Task.FromResult(new List<ProjectDTO>());
+            => Task.FromResult(ActiveProjects);
 
         public Task<bool> IsTenantActiveAsync(string tenantId)
             => Task.FromResult(TenantIsActive);

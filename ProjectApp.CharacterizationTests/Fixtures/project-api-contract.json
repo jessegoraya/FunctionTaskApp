@@ -12,6 +12,12 @@
     "methods": ["get"]
   },
   {
+    "functionName": "GetParticipantProjectCandidates",
+    "route": "internal/projects/participant-candidates",
+    "authorizationLevel": "Function",
+    "methods": ["post"]
+  },
+  {
     "functionName": "GetProjectAgentContextBatch",
     "route": "internal/projects/agent-context/batch",
     "authorizationLevel": "Function",

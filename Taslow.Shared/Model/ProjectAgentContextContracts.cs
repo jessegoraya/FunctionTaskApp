@@ -30,6 +30,33 @@ namespace Taslow.Shared.Model
         public List<ProjectAgentContextProject> Projects { get; set; } = new();
     }
 
+    public class ProjectParticipantCandidateRequest
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("participantEmails")]
+        public List<string> ParticipantEmails { get; set; } = new();
+    }
+
+    public class ProjectParticipantCandidateResponse
+    {
+        [JsonProperty("tenantId")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [JsonProperty("projects")]
+        public List<ProjectParticipantCandidate> Projects { get; set; } = new();
+    }
+
+    public class ProjectParticipantCandidate
+    {
+        [JsonProperty("projectId")]
+        public string ProjectId { get; set; } = string.Empty;
+
+        [JsonProperty("matchedParticipantEmails")]
+        public List<string> MatchedParticipantEmails { get; set; } = new();
+    }
+
     public class ProjectAgentContextProject
     {
         [JsonProperty("projectId")]

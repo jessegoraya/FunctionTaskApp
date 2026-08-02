@@ -60,6 +60,26 @@ public class ProjectRequestValidatorTests
     }
 
     [Fact]
+    public void ParticipantCandidateRequest_ShouldRequireTenantAndValidBoundedEmails()
+    {
+        Assert.False(_validator.IsValid((ProjectParticipantCandidateRequest?)null));
+        Assert.False(_validator.IsValid(new ProjectParticipantCandidateRequest
+        {
+            TenantId = "tenant-a",
+            ParticipantEmails = new List<string> { "not-an-email" }
+        }));
+        Assert.True(_validator.IsValid(new ProjectParticipantCandidateRequest
+        {
+            TenantId = "tenant-a",
+            ParticipantEmails = new List<string>
+            {
+                "alex@bloomsky.onmicrosoft.com",
+                "paco@bloomsky.onmicrosoft.com"
+            }
+        }));
+    }
+
+    [Fact]
     public void ClientDomainsPatch_ShouldRequireTenantProjectAndDomains()
     {
         Assert.False(_validator.IsValid(new ProjectClientDomainsPatchRequest

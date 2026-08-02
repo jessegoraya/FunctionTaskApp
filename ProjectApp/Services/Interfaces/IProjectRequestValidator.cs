@@ -10,6 +10,8 @@ public interface IProjectRequestValidator
 
     bool IsValid(ProjectAgentContextRequest? request);
 
+    bool IsValid(ProjectParticipantCandidateRequest? request);
+
     bool IsValid(ProjectClientDomainsPatchRequest? request);
 
     bool IsValid(ProjectScopeLinkRequest? request, string tenantId, string projectId);
