@@ -36,7 +36,7 @@ public sealed class ProjectManagementFunctions
 
     [Function("CreateProjectV2")]
     public async Task<HttpResponseData> CreateProjectV2Async(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "projects/{tenantId}")] HttpRequestData req,
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "projects/{tenantId:guid}")] HttpRequestData req,
         string tenantId)
     {
         var authFailure = await EnsureCreateAuthorizationAsync(req, tenantId);
