@@ -606,6 +606,12 @@ namespace Taslow.Task.Function
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = "moveindtask/{tenantid}/")] HttpRequestData req,
             string tenantid)
         {
+            var authFailure = Authorize(req, tenantid, out var auth);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
             try
             {
                 string requestBody = await ReadBodyAsync(req);
@@ -643,12 +649,97 @@ namespace Taslow.Task.Function
                     targetprojectid = ReadToken("targetprojectid", "targetProjectId", "target.projectid", "target.projectId", "newProjectId", "projectid"),
                     targetgrouptaskid = ReadToken("targetgrouptaskid", "targetGroupTaskId", "target.grouptaskid", "target.groupTaskId", "newGroupTaskId"),
                     targetindividualtasksetid = ReadToken("targetindividualtasksetid", "targetIndividualTaskSetId", "target.individualtasksetid", "target.individualTaskSetId", "newIndividualTaskSetId"),
+                    individualtasktitle = ReadToken("individualtasktitle", "individualTaskTitle", "title"),
+                    individualtaskdescription = ReadToken("individualtaskdescription", "individualTaskDescription", "description"),
+                    assignedperson = ReadToken("assignedperson", "assignedPerson", "assignee", "assigneeEmail"),
                     updatedby = ReadToken("updatedby", "updatedBy", "lastModifiedBy")
                 };
 
-                if (string.IsNullOrWhiteSpace(moveIT.targetgrouptaskid))
+                var dueDate = ReadToken(
+                    "individualtaskduedate",
+                    "individualTaskDueDate",
+                    "dueDate");
+                if (!string.IsNullOrWhiteSpace(dueDate))
                 {
-                    moveIT.targetgrouptaskid = moveIT.sourcegrouptaskid;
+                    if (!DateTime.TryParse(dueDate, out var parsedDueDate))
+                    {
+                        return await TextAsync(req, HttpStatusCode.BadRequest, "Invalid task due date.");
+                    }
+
+                    moveIT.individualtaskduedate = parsedDueDate;
+                }
+
+                if (string.IsNullOrWhiteSpace(moveIT.assignedperson))
+                {
+                    return await TextAsync(
+                        req,
+                        HttpStatusCode.BadRequest,
+                        "A target-project assignee is required when moving a Task.");
+                }
+
+                if (string.IsNullOrWhiteSpace(moveIT.individualtaskid)
+                    || string.IsNullOrWhiteSpace(moveIT.sourceprojectid)
+                    || string.IsNullOrWhiteSpace(moveIT.targetprojectid))
+                {
+                    return await TextAsync(
+                        req,
+                        HttpStatusCode.BadRequest,
+                        "Task, source Project, and target Project identifiers are required.");
+                }
+
+                var sourceTaskSets = await _taskDb.GetGroupTaskSetsByProjectId(
+                    moveIT.sourceprojectid,
+                    tenantid);
+                var sourceTask = (sourceTaskSets ?? new List<GroupTaskSet>())
+                    .Select(taskSet => FindIndividualTask(taskSet, moveIT.individualtaskid))
+                    .FirstOrDefault(task => task != null);
+                var managedProjectIds = new List<string>();
+                if (auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(auth.Email))
+                {
+                    managedProjectIds = await _projSvcClient.GetProjectIdsForManagerAsync(
+                        tenantid,
+                        auth.Email,
+                        auth.AccessToken);
+                }
+
+                if (!CanMoveTask(
+                        auth,
+                        sourceTask,
+                        moveIT.sourceprojectid,
+                        managedProjectIds))
+                {
+                    return req.CreateResponse(HttpStatusCode.Forbidden);
+                }
+
+                var targetProjects = await _projSvcClient.GetTaskReassignmentProjectsAsync(
+                    tenantid,
+                    auth.AccessToken);
+                if (!targetProjects.Any(project =>
+                        string.Equals(
+                            project.Id,
+                            moveIT.targetprojectid,
+                            StringComparison.OrdinalIgnoreCase)))
+                {
+                    return await TextAsync(req, HttpStatusCode.NotFound, "Target active Project not found.");
+                }
+
+                var targetAssociations = await _projSvcClient.GetProjectAssociationsAsync(
+                    tenantid,
+                    moveIT.targetprojectid,
+                    auth.AccessToken);
+                var validAssignee = targetAssociations.AssociatedManagers
+                    .Concat(targetAssociations.AssociatedPeople)
+                    .Any(person => string.Equals(
+                        person.PersonEmail,
+                        moveIT.assignedperson,
+                        StringComparison.OrdinalIgnoreCase));
+                if (!validAssignee)
+                {
+                    return await TextAsync(
+                        req,
+                        HttpStatusCode.BadRequest,
+                        "The selected assignee is not associated with the target Project.");
                 }
 
                 bool success = await _taskDb.MoveIndividualTaskAsync(tenantid, moveIT);
@@ -665,6 +756,14 @@ namespace Taslow.Task.Function
             {
                 _log.LogError(ex, "Unable to move IndividualTask for tenant {TenantId}", tenantid);
                 return await TextAsync(req, HttpStatusCode.NotFound, ex.Message);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return req.CreateResponse(HttpStatusCode.Forbidden);
+            }
+            catch (KeyNotFoundException)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
             }
             catch (Exception ex)
             {
@@ -895,30 +994,38 @@ namespace Taslow.Task.Function
                 return true;
             }
 
-            if (auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(auth.Email))
-            {
-                var managedProjectIds = await _projSvcClient.GetProjectIdsForManagerAsync(
-                    tenantId,
-                    auth.Email,
-                    auth.AccessToken);
-                return managedProjectIds.Contains(projectId, StringComparer.OrdinalIgnoreCase);
-            }
-
-            if (auth.Roles.Contains(TenantRoles.TenantLeader, StringComparer.OrdinalIgnoreCase))
-            {
-                var projects = await _projSvcClient.GetActiveProjectsAsync(
-                    tenantId,
-                    auth.AccessToken);
-                return projects.Any(project =>
-                    project.Id.Equals(projectId, StringComparison.OrdinalIgnoreCase)
-                    && auth.LeaderMarketCodes.Contains(
-                        project.MarketCode,
-                        StringComparer.OrdinalIgnoreCase));
-            }
-
-            return false;
+            var visibleProjects = await _projSvcClient.GetActiveProjectsAsync(
+                tenantId,
+                auth.AccessToken);
+            return visibleProjects.Any(project =>
+                string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase));
         }
+
+        internal static IndividualTask FindIndividualTask(
+            GroupTaskSet taskSet,
+            string individualTaskId)
+            => taskSet?.grouptask?
+                .SelectMany(groupTask => groupTask.individualtasksets ?? new List<IndividualTaskSet>())
+                .SelectMany(taskSet => taskSet.individualtask ?? new List<IndividualTask>())
+                .FirstOrDefault(task => task.individualtaskid == individualTaskId);
+
+        internal static bool CanMoveTask(
+            TaskAuthContext auth,
+            IndividualTask sourceTask,
+            string sourceProjectId,
+            IEnumerable<string> managedProjectIds)
+            => auth.Roles.Contains(TenantRoles.TenantAdmin, StringComparer.OrdinalIgnoreCase)
+                || auth.Roles.Contains(TenantRoles.TaslowAdmin, StringComparer.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(auth.Email)
+                    && sourceTask != null
+                    && string.Equals(
+                        sourceTask.assignedperson,
+                        auth.Email,
+                        StringComparison.OrdinalIgnoreCase))
+                || (auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase)
+                    && (managedProjectIds ?? Enumerable.Empty<string>()).Contains(
+                        sourceProjectId,
+                        StringComparer.OrdinalIgnoreCase));
 
         private HttpResponseData AuthorizationFailure(
             HttpRequestData req,

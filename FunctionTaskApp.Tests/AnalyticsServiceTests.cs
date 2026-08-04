@@ -224,6 +224,28 @@ namespace FunctionTaskApp.Tests
                 string accessToken) =>
                 Task.FromResult(_projects.ToList());
 
+            public Task<List<TaskProjectOptionDTO>> GetTaskReassignmentProjectsAsync(
+                string tenantId,
+                string accessToken) =>
+                Task.FromResult(_projects.Select(project => new TaskProjectOptionDTO
+                {
+                    Id = project.Id,
+                    ProjectName = project.ProjectName
+                }).ToList());
+
+            public Task<ProjectAssociationsDTO> GetProjectAssociationsAsync(
+                string tenantId,
+                string projectId,
+                string accessToken)
+            {
+                var project = _projects.Single(item => item.Id == projectId);
+                return Task.FromResult(new ProjectAssociationsDTO
+                {
+                    AssociatedManagers = project.AssociatedManagers,
+                    AssociatedPeople = project.AssociatedPeople
+                });
+            }
+
             public Task<List<string>> GetProjectIdsForManagerAsync(
                 string tenantId,
                 string manager,

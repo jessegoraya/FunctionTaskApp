@@ -55,7 +55,10 @@ namespace FunctionTaskApp.IntegrationTests
                     sourceprojectid = "project-a",
                     targetprojectid = "project-b",
                     targetgrouptaskid = "gt-target-gts",
-                    targetindividualtasksetid = "its-target-gts"
+                    targetindividualtasksetid = "its-target-gts",
+                    individualtasktitle = "Corrected task title",
+                    assignedperson = "new-owner@example.com",
+                    individualtaskduedate = new DateTime(2026, 8, 12, 17, 0, 0, DateTimeKind.Utc)
                 });
 
             Assert.True(moved);
@@ -63,10 +66,16 @@ namespace FunctionTaskApp.IntegrationTests
                 (await taskDb.GetGroupTaskSetByProjectId("project-a", "tenant-a"))
                     .grouptask.SelectMany(gt => gt.individualtasksets).SelectMany(its => its.individualtask),
                 task => task.individualtaskid == "it-source-gts");
-            Assert.Contains(
+            var movedTask = Assert.Single(
                 (await taskDb.GetGroupTaskSetByProjectId("project-b", "tenant-a"))
-                    .grouptask.SelectMany(gt => gt.individualtasksets).SelectMany(its => its.individualtask),
+                    .grouptask.SelectMany(gt => gt.individualtasksets)
+                    .SelectMany(its => its.individualtask),
                 task => task.individualtaskid == "it-source-gts");
+            Assert.Equal("Corrected task title", movedTask.individualtasktitle);
+            Assert.Equal("new-owner@example.com", movedTask.assignedperson);
+            Assert.Equal(
+                new DateTime(2026, 8, 12, 17, 0, 0, DateTimeKind.Utc),
+                movedTask.individualtaskduedate);
         }
 
         private static ProjectDTO BuildProject(
@@ -179,6 +188,16 @@ namespace FunctionTaskApp.IntegrationTests
                     its.individualtask.Any(it => it.individualtaskid == moveIT.individualtaskid));
                 var task = sourceSet.individualtask.First(it => it.individualtaskid == moveIT.individualtaskid);
 
+                if (!string.IsNullOrWhiteSpace(moveIT.individualtasktitle))
+                {
+                    task.individualtasktitle = moveIT.individualtasktitle;
+                }
+                task.assignedperson = moveIT.assignedperson;
+                if (moveIT.individualtaskduedate.HasValue)
+                {
+                    task.individualtaskduedate = moveIT.individualtaskduedate.Value;
+                }
+
                 sourceSet.individualtask.Remove(task);
 
                 var targetGroup = target.grouptask.First(gt =>
@@ -246,6 +265,28 @@ namespace FunctionTaskApp.IntegrationTests
                 string tenantId,
                 string accessToken) =>
                 Task.FromResult(Projects.ToList());
+
+            public Task<List<TaskProjectOptionDTO>> GetTaskReassignmentProjectsAsync(
+                string tenantId,
+                string accessToken) =>
+                Task.FromResult(Projects.Select(project => new TaskProjectOptionDTO
+                {
+                    Id = project.Id,
+                    ProjectName = project.ProjectName
+                }).ToList());
+
+            public Task<ProjectAssociationsDTO> GetProjectAssociationsAsync(
+                string tenantId,
+                string projectId,
+                string accessToken)
+            {
+                var project = Projects.Single(item => item.Id == projectId);
+                return Task.FromResult(new ProjectAssociationsDTO
+                {
+                    AssociatedManagers = project.AssociatedManagers,
+                    AssociatedPeople = project.AssociatedPeople
+                });
+            }
 
             public Task<List<string>> GetProjectIdsForManagerAsync(
                 string tenantId,

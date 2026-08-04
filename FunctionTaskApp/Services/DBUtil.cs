@@ -665,9 +665,10 @@ namespace Taslow.Task.DAL
             if (string.IsNullOrWhiteSpace(tenantid) ||
                 string.IsNullOrWhiteSpace(moveIT.individualtaskid) ||
                 string.IsNullOrWhiteSpace(moveIT.sourceprojectid) ||
-                string.IsNullOrWhiteSpace(moveIT.targetprojectid))
+                string.IsNullOrWhiteSpace(moveIT.targetprojectid) ||
+                string.IsNullOrWhiteSpace(moveIT.assignedperson))
             {
-                throw new ArgumentException("tenantid, individualtaskid, sourceprojectid, and targetprojectid are required.");
+                throw new ArgumentException("tenantid, individualtaskid, sourceprojectid, targetprojectid, and assignedperson are required.");
             }
 
             try
@@ -759,14 +760,11 @@ namespace Taslow.Task.DAL
                 IndividualTask taskToMove = sourceGts.grouptask[sourceGtIndex]
                     .individualtasksets[sourceItsIndex]
                     .individualtask[sourceItIndex];
+                ApplyMoveUpdates(taskToMove, moveIT);
 
                 var targetGroupTasks = targetGts.grouptask ?? new List<GroupTask>();
 
                 string targetGtId = moveIT.targetgrouptaskid;
-                if (string.IsNullOrWhiteSpace(targetGtId))
-                {
-                    targetGtId = moveIT.sourcegrouptaskid;
-                }
 
                 int targetGtIndex = -1;
                 if (!string.IsNullOrWhiteSpace(targetGtId))
@@ -774,7 +772,9 @@ namespace Taslow.Task.DAL
                     targetGtIndex = targetGroupTasks.FindIndex(gt => gt.grouptaskid == targetGtId);
                 }
 
-                if (targetGtIndex < 0 && targetGroupTasks.Count == 1)
+                if (targetGtIndex < 0
+                    && string.IsNullOrWhiteSpace(targetGtId)
+                    && targetGroupTasks.Count > 0)
                 {
                     targetGtIndex = 0;
                 }
@@ -846,6 +846,28 @@ namespace Taslow.Task.DAL
             {
                 Console.WriteLine($"Error moving Individual Task: {ex.StatusCode} - {ex.Message}");
                 return false;
+            }
+        }
+
+        internal static void ApplyMoveUpdates(
+            IndividualTask task,
+            MoveIndividualTaskDTO move)
+        {
+            if (!string.IsNullOrWhiteSpace(move.individualtasktitle))
+            {
+                task.individualtasktitle = move.individualtasktitle.Trim();
+            }
+
+            if (move.individualtaskdescription != null)
+            {
+                task.individualtaskdescription = move.individualtaskdescription;
+            }
+
+            task.assignedperson = move.assignedperson.Trim();
+
+            if (move.individualtaskduedate.HasValue)
+            {
+                task.individualtaskduedate = move.individualtaskduedate.Value;
             }
         }
 

@@ -132,6 +132,35 @@ namespace Taslow.Task.Client
             }
         }
 
+        public async Task<List<TaskProjectOptionDTO>> GetTaskReassignmentProjectsAsync(
+            string tenantId,
+            string accessToken)
+        {
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"projects/active/{tenantId}?purpose=task-reassignment");
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            var response = await _httpClient.SendAsync(message);
+            EnsureTenantAccess(response);
+
+            return await response.Content.ReadFromJsonAsync<List<TaskProjectOptionDTO>>() ?? new();
+        }
+
+        public async Task<ProjectAssociationsDTO> GetProjectAssociationsAsync(
+            string tenantId,
+            string projectId,
+            string accessToken)
+        {
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"projects/{tenantId}/{projectId}/associations");
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            var response = await _httpClient.SendAsync(message);
+            EnsureTenantAccess(response);
+
+            return await response.Content.ReadFromJsonAsync<ProjectAssociationsDTO>() ?? new();
+        }
+
         private static void EnsureTenantAccess(HttpResponseMessage response)
         {
             if (response.StatusCode == HttpStatusCode.Forbidden)

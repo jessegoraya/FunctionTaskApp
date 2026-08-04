@@ -5,6 +5,25 @@ namespace Taslow.Project.Service;
 
 internal static class ProjectAccessPolicy
 {
+    public static IEnumerable<TaskProjectOptionDTO> TaskReassignmentOptions(
+        IEnumerable<ProjectDTO> projects)
+        => (projects ?? Enumerable.Empty<ProjectDTO>())
+            .Where(project =>
+                !string.IsNullOrWhiteSpace(project.Id)
+                && !string.IsNullOrWhiteSpace(project.ProjectName)
+                && string.Equals(
+                    project.ProjectStatus,
+                    "Active",
+                    StringComparison.OrdinalIgnoreCase))
+            .GroupBy(project => project.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .Select(project => new TaskProjectOptionDTO
+            {
+                Id = project.Id,
+                ProjectName = project.ProjectName
+            });
+
     public static IEnumerable<ProjectDTO> FilterVisible(
         ProjectAuthContext auth,
         IEnumerable<ProjectDTO> projects)

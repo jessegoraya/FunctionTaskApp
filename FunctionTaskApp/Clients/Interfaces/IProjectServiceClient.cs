@@ -15,6 +15,15 @@ namespace Taslow.Task.Client.Interface;
 
     Task<List<ProjectDTO>> GetActiveProjectsAsync(string tenantId, string accessToken);
 
+    Task<List<TaskProjectOptionDTO>> GetTaskReassignmentProjectsAsync(
+        string tenantId,
+        string accessToken);
+
+    Task<ProjectAssociationsDTO> GetProjectAssociationsAsync(
+        string tenantId,
+        string projectId,
+        string accessToken);
+
     Task<List<string>> GetProjectIdsForManagerAsync(string tenantId, string manager, string accessToken);
 }
 
