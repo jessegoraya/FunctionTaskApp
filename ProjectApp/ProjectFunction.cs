@@ -100,6 +100,15 @@ public sealed class ProjectTaskController
         try
         {
             var projects = await _projectService.GetActiveProjectsByTenantAsync(tenantId);
+            var purpose = GetQueryValue(req, "purpose");
+            if (purpose?.Equals("task-reassignment", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return await Json(
+                    req,
+                    HttpStatusCode.OK,
+                    ProjectAccessPolicy.TaskReassignmentOptions(projects).ToList());
+            }
+
             var visibleProjects = ProjectAccessPolicy.FilterVisible(auth, projects).ToList();
             return await Json(req, HttpStatusCode.OK, visibleProjects);
         }

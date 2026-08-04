@@ -14,6 +14,11 @@ namespace Taslow.Task.Model
         public string targetgrouptaskid { get; set; }
         public string targetindividualtasksetid { get; set; }
 
+        public string individualtasktitle { get; set; }
+        public string individualtaskdescription { get; set; }
+        public string assignedperson { get; set; }
+        public DateTime? individualtaskduedate { get; set; }
+
         public string updatedby { get; set; }
     }
 }

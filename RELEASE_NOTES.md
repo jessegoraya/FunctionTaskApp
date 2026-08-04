@@ -1,5 +1,11 @@
 # Function Services Release Notes
 
+## v0.1.0-dev.14
+
+- Adds a signed, tenant-scoped minimal active-Project catalog for manual Task reassignment without widening the normal Project directory.
+- Validates that a moved Task targets an active Project and that its newly selected assignee is a manager or associated person on that Project.
+- Persists the Project move, replacement assignee, and any same-dialog Task field edits together while denying mutation by unrelated users.
+
 ## v0.1.0-dev.13
 
 - Posts Microsoft authorization callbacks as form data so large Entra authorization codes do

@@ -55,6 +55,33 @@ public class ProjectServiceClientTests
             handler.RequestUri?.AbsoluteUri);
     }
 
+    [Fact]
+    public async Task GetTaskReassignmentProjectsAsync_RequestsPurposeScopedCatalog()
+    {
+        var handler = new RecordingHandler("[]");
+        var client = CreateClient("https://example.test/FunctionProjectApp", handler);
+
+        await client.GetTaskReassignmentProjectsAsync("tenant-1", "test-token");
+
+        Assert.Equal(
+            "https://example.test/FunctionProjectApp/projects/active/tenant-1?purpose=task-reassignment",
+            handler.RequestUri?.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task GetProjectAssociationsAsync_RequestsSelectedProjectTeam()
+    {
+        var handler = new RecordingHandler(
+            "{\"associatedPeople\":[],\"associatedManagers\":[]}");
+        var client = CreateClient("https://example.test/FunctionProjectApp", handler);
+
+        await client.GetProjectAssociationsAsync("tenant-1", "project-1", "test-token");
+
+        Assert.Equal(
+            "https://example.test/FunctionProjectApp/projects/tenant-1/project-1/associations",
+            handler.RequestUri?.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, typeof(UnauthorizedAccessException))]
     [InlineData(HttpStatusCode.NotFound, typeof(KeyNotFoundException))]

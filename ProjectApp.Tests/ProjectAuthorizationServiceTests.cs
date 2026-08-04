@@ -168,6 +168,44 @@ public class ProjectAuthorizationServiceTests
     }
 
     [Fact]
+    public void TaskReassignmentCatalog_ShouldContainEveryActiveProjectAsMinimalOptions()
+    {
+        var projectZ = Project(
+            "project-z",
+            "DEFENSE",
+            "manager-z@example.com",
+            "member-z@example.com");
+        projectZ.ProjectName = "Zulu Project";
+        projectZ.ProjectStatus = "Active";
+        projectZ.ProjectDescription = "Must not be included in the option contract.";
+        var projectA = Project(
+            "project-a",
+            "HEALTH",
+            "manager-a@example.com",
+            "member-a@example.com");
+        projectA.ProjectName = "Alpha Project";
+        projectA.ProjectStatus = "active";
+        var archivedProject = Project(
+            "project-old",
+            "CIVILIAN",
+            "manager-old@example.com",
+            "member-old@example.com");
+        archivedProject.ProjectName = "Archived Project";
+        archivedProject.ProjectStatus = "Archived";
+        var projects = new[]
+        {
+            projectZ,
+            projectA,
+            archivedProject
+        };
+
+        var options = ProjectAccessPolicy.TaskReassignmentOptions(projects).ToList();
+
+        Assert.Equal(new[] { "project-a", "project-z" }, options.Select(option => option.Id));
+        Assert.Equal(new[] { "Alpha Project", "Zulu Project" }, options.Select(option => option.ProjectName));
+    }
+
+    [Fact]
     public void BrowserSuppliedRoleHeadersWithoutSession_ShouldBeRejected()
     {
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
