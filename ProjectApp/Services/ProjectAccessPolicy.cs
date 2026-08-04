@@ -15,18 +15,21 @@ internal static class ProjectAccessPolicy
             return projects;
         }
 
-        if (auth.Roles.Contains(TenantRoles.TenantPm, StringComparer.OrdinalIgnoreCase))
-        {
-            return projects.Where(project => ContainsEmail(project.AssociatedManagers, auth.Email));
-        }
+        var canReadManagedProjects = auth.Roles.Contains(
+            TenantRoles.TenantPm,
+            StringComparer.OrdinalIgnoreCase);
+        var canReadLedMarkets = auth.Roles.Contains(
+            TenantRoles.TenantLeader,
+            StringComparer.OrdinalIgnoreCase);
+        var canReadMemberProjects = auth.Roles.Contains(
+            TenantRoles.TenantUser,
+            StringComparer.OrdinalIgnoreCase);
 
-        if (auth.Roles.Contains(TenantRoles.TenantLeader, StringComparer.OrdinalIgnoreCase))
-        {
-            return projects.Where(project =>
-                auth.LeaderMarketCodes.Contains(project.MarketCode, StringComparer.OrdinalIgnoreCase));
-        }
-
-        return projects.Where(project => ContainsEmail(project.AssociatedPeople, auth.Email));
+        return projects.Where(project =>
+            (canReadManagedProjects && ContainsEmail(project.AssociatedManagers, auth.Email))
+            || (canReadLedMarkets
+                && auth.LeaderMarketCodes.Contains(project.MarketCode, StringComparer.OrdinalIgnoreCase))
+            || (canReadMemberProjects && ContainsEmail(project.AssociatedPeople, auth.Email)));
     }
 
     private static bool ContainsEmail(IEnumerable<ProjectPersonDTO>? people, string email)
