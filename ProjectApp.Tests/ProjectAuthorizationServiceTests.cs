@@ -139,6 +139,35 @@ public class ProjectAuthorizationServiceTests
     }
 
     [Fact]
+    public void ProjectVisibility_ShouldCombineAuthorizedProjectsForMultiRoleUsers()
+    {
+        const string pacoEmail = "pforonda@bloomsky.onmicrosoft.com";
+        var projects = new[]
+        {
+            Project("managed-project", "CIVILIAN", pacoEmail, "member-a@bloomsky.onmicrosoft.com"),
+            Project("member-project", "HEALTH", "manager-b@bloomsky.onmicrosoft.com", pacoEmail),
+            Project(
+                "unrelated-project",
+                "DEFENSE",
+                "manager-c@bloomsky.onmicrosoft.com",
+                "member-c@bloomsky.onmicrosoft.com")
+        };
+        var auth = _authorization.Resolve(CookieHeaders(IssueToken(
+            "tenant-a",
+            pacoEmail,
+            TenantRoles.TenantPm,
+            additionalRoles: new[] { TenantRoles.TenantUser })));
+
+        var visibleProjectIds = ProjectAccessPolicy.FilterVisible(auth, projects)
+            .Select(project => project.Id)
+            .OrderBy(id => id)
+            .ToList();
+
+        Assert.Equal(new[] { "managed-project", "member-project" }, visibleProjectIds);
+        Assert.DoesNotContain("unrelated-project", visibleProjectIds);
+    }
+
+    [Fact]
     public void BrowserSuppliedRoleHeadersWithoutSession_ShouldBeRejected()
     {
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -158,7 +187,8 @@ public class ProjectAuthorizationServiceTests
         string tenantId,
         string email,
         string role,
-        string[]? leaderMarketCodes = null)
+        string[]? leaderMarketCodes = null,
+        string[]? additionalRoles = null)
     {
         var now = DateTime.UtcNow;
         var claims = new List<Claim>
@@ -167,7 +197,10 @@ public class ProjectAuthorizationServiceTests
             new(TaslowClaimTypes.TenantId, tenantId),
             new(ClaimTypes.Email, email)
         };
-        claims.Add(new Claim(TaslowClaimTypes.Roles, role));
+        claims.AddRange(new[] { role }
+            .Concat(additionalRoles ?? Array.Empty<string>())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(value => new Claim(TaslowClaimTypes.Roles, value)));
         claims.AddRange((leaderMarketCodes ?? Array.Empty<string>())
             .Select(code => new Claim(TaslowClaimTypes.LeaderMarketCodes, code)));
 
