@@ -381,15 +381,28 @@ namespace Taslow.Project.DAL
             };
         }
 
+        internal const string ProjectsByIdQuery = @"
+            SELECT *
+            FROM c
+            WHERE ARRAY_CONTAINS(@ids, c.id)
+               OR ARRAY_CONTAINS(@ids, c.ProjectID)
+               OR ARRAY_CONTAINS(@ids, c.projectId)
+               OR ARRAY_CONTAINS(@ids, c.projectid)";
+
         public async Task<Dictionary<string, ProjectDTO>> GetProjectsByIdListAsync(List<string> projectIds, string tenantId)
         {
-            var query = new QueryDefinition(
-                "SELECT * FROM c WHERE ARRAY_CONTAINS(@ids, c.projectid)")
-                .WithParameter("@ids", projectIds);
+            var normalizedProjectIds = projectIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            var results = new Dictionary<string, ProjectDTO>();
+            var query = new QueryDefinition(ProjectsByIdQuery)
+                .WithParameter("@ids", normalizedProjectIds);
 
-            using var iterator = Container.GetItemQueryIterator<ProjectDTO>(
+            var results = new Dictionary<string, ProjectDTO>(StringComparer.OrdinalIgnoreCase);
+
+            using var iterator = Container.GetItemQueryIterator<JObject>(
                 query,
                 requestOptions: new QueryRequestOptions
                 {
@@ -398,8 +411,9 @@ namespace Taslow.Project.DAL
 
             while (iterator.HasMoreResults)
             {
-                foreach (var project in await iterator.ReadNextAsync())
+                foreach (var projectDocument in await iterator.ReadNextAsync())
                 {
+                    var project = MapActiveProject(projectDocument);
                     results[project.Id] = project;
                 }
             }

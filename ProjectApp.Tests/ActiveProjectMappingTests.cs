@@ -26,6 +26,15 @@ public class ActiveProjectMappingTests
     }
 
     [Fact]
+    public void ProjectsByIdQuery_ShouldMatchCanonicalCosmosIdAndLegacyAliases()
+    {
+        Assert.Contains("ARRAY_CONTAINS(@ids, c.id)", DBUtil.ProjectsByIdQuery);
+        Assert.Contains("ARRAY_CONTAINS(@ids, c.ProjectID)", DBUtil.ProjectsByIdQuery);
+        Assert.Contains("ARRAY_CONTAINS(@ids, c.projectId)", DBUtil.ProjectsByIdQuery);
+        Assert.Contains("ARRAY_CONTAINS(@ids, c.projectid)", DBUtil.ProjectsByIdQuery);
+    }
+
+    [Fact]
     public void MapActiveProject_ShouldNormalizeLegacyProjectShape()
     {
         var source = JObject.Parse(@"{
